@@ -31,6 +31,7 @@ export default function PatientWorkspacePage() {
               <option value="hi">हिन्दी (Hindi)</option>
               <option value="zh">中文 (Mandarin)</option>
               <option value="ar">العربية (Arabic)</option>
+              <option value="ta">தமிழ் (Tamil - Planned)</option>
             </select>
           </div>
         }

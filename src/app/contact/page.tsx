@@ -8,7 +8,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
-import { Mail, Building2, User, Info, CheckCircle2 } from "lucide-react";
+import { Mail, Building2, User, Info, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 
 export default function ContactPage() {
   const [formData, setFormData] = React.useState({
@@ -16,12 +16,18 @@ export default function ContactPage() {
     email: "",
     institution: "",
     role: "Clinical Investigator",
-    inquiryType: "Research Collaboration",
+    inquiryType: "pilot_inquiry",
     message: "",
   });
 
   const [errors, setErrors] = React.useState<Record<string, string>>({});
-  const [validationPassed, setValidationPassed] = React.useState(false);
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [submissionResult, setSubmissionResult] = React.useState<{
+    success: boolean;
+    persisted: boolean;
+    inquiryId?: string;
+    message: string;
+  } | null>(null);
 
   const validate = () => {
     const errs: Record<string, string> = {};
@@ -30,19 +36,64 @@ export default function ContactPage() {
       errs.email = "Please enter a valid institutional email address.";
     }
     if (!formData.institution.trim()) errs.institution = "Please specify your institution or health system.";
-    if (!formData.message.trim() || formData.message.length < 20) {
-      errs.message = "Please provide details regarding your inquiry (minimum 20 characters).";
+    if (!formData.message.trim() || formData.message.length < 15) {
+      errs.message = "Please provide details regarding your inquiry (minimum 15 characters).";
     }
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
 
-  const handleValidateForm = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (validate()) {
-      setValidationPassed(true);
-    } else {
-      setValidationPassed(false);
+    setSubmissionResult(null);
+
+    if (!validate()) return;
+
+    setIsSubmitting(true);
+    try {
+      const res = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setSubmissionResult({
+          success: false,
+          persisted: false,
+          message: data.message || "Failed to submit inquiry. Please review your entries.",
+        });
+        if (data.errors && data.errors.length > 0) {
+          setErrors({ api: data.errors.join(". ") });
+        }
+      } else {
+        setSubmissionResult({
+          success: true,
+          persisted: Boolean(data.persisted),
+          inquiryId: data.inquiryId,
+          message: data.message,
+        });
+        // Clear form on confirmed successful submission
+        setFormData({
+          fullName: "",
+          email: "",
+          institution: "",
+          role: "Clinical Investigator",
+          inquiryType: "pilot_inquiry",
+          message: "",
+        });
+        setErrors({});
+      }
+    } catch (err: unknown) {
+      setSubmissionResult({
+        success: false,
+        persisted: false,
+        message: "Network error connecting to /api/contact endpoint.",
+      });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -67,12 +118,12 @@ export default function ContactPage() {
             <div className="p-4 rounded-[8px] bg-[#faf9f5] border border-[var(--line)] flex items-start gap-3 text-[13px] text-[var(--muted)]">
               <Info className="w-5 h-5 text-[var(--green)] shrink-0 mt-0.5" />
               <div>
-                <strong className="text-[var(--ink)] block mb-0.5">Frontend Interface Notice</strong>
-                During Phase 02 frontend development, automated web dispatch endpoints are inactive to prevent unverified transmission. The form below provides client-side validation. Formal institutional inquiries should be directed to the research team at <span className="font-mono text-[var(--ink)] font-semibold">research@pramana-v1.local</span>.
+                <strong className="text-[var(--ink)] block mb-0.5">Phase 03 Server-Side Persistence</strong>
+                Inquiries submitted below are validated on the server and persisted to the PostgreSQL <span className="font-mono text-[var(--ink)] font-semibold">contact_inquiries</span> table. For patient safety, Protected Health Information (PHI) is rejected by automated validation.
               </div>
             </div>
 
-            <form onSubmit={handleValidateForm} className="p-8 rounded-[12px] bg-white border border-[var(--line)] space-y-5">
+            <form onSubmit={handleSubmit} className="p-8 rounded-[12px] bg-white border border-[var(--line)] space-y-5">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                 <Input
                   label="Full Name"
@@ -81,7 +132,7 @@ export default function ContactPage() {
                   value={formData.fullName}
                   onChange={(e) => {
                     setFormData({ ...formData, fullName: e.target.value });
-                    setValidationPassed(false);
+                    setSubmissionResult(null);
                   }}
                   error={errors.fullName}
                   required
@@ -94,7 +145,7 @@ export default function ContactPage() {
                   value={formData.email}
                   onChange={(e) => {
                     setFormData({ ...formData, email: e.target.value });
-                    setValidationPassed(false);
+                    setSubmissionResult(null);
                   }}
                   error={errors.email}
                   required
@@ -109,7 +160,7 @@ export default function ContactPage() {
                   value={formData.institution}
                   onChange={(e) => {
                     setFormData({ ...formData, institution: e.target.value });
-                    setValidationPassed(false);
+                    setSubmissionResult(null);
                   }}
                   error={errors.institution}
                   required
@@ -119,7 +170,7 @@ export default function ContactPage() {
                   value={formData.role}
                   onChange={(e) => {
                     setFormData({ ...formData, role: e.target.value });
-                    setValidationPassed(false);
+                    setSubmissionResult(null);
                   }}
                   options={[
                     { value: "Clinical Investigator", label: "Clinical Investigator" },
@@ -136,13 +187,13 @@ export default function ContactPage() {
                 value={formData.inquiryType}
                 onChange={(e) => {
                   setFormData({ ...formData, inquiryType: e.target.value });
-                  setValidationPassed(false);
+                  setSubmissionResult(null);
                 }}
                 options={[
-                  { value: "Research Collaboration", label: "Research Collaboration & Pilot Study" },
-                  { value: "Platform Architecture Assessment", label: "Platform Architecture Assessment" },
-                  { value: "Security & Compliance Evaluation", label: "Security & Compliance Evaluation" },
-                  { value: "General Academic Inquiry", label: "General Academic Inquiry" },
+                  { value: "pilot_inquiry", label: "Research Collaboration & Pilot Study" },
+                  { value: "security_audit", label: "Security & Compliance Evaluation" },
+                  { value: "research_collaboration", label: "Clinical Trial Integration Inquiry" },
+                  { value: "general", label: "General Academic Inquiry" },
                 ]}
               />
 
@@ -155,28 +206,56 @@ export default function ContactPage() {
                   value={formData.message}
                   onChange={(e) => {
                     setFormData({ ...formData, message: e.target.value });
-                    setValidationPassed(false);
+                    setSubmissionResult(null);
                   }}
-                  placeholder="Please describe your clinical focus, trial parameters, or questions regarding Pramana-V1's provenance architecture..."
+                  placeholder="Please describe your clinical focus, trial parameters, or questions regarding Pramana-V1's provenance architecture (do not include patient PHI)..."
                   className="w-full bg-white text-[var(--ink)] text-[14px] placeholder:text-[#889b91] border border-[var(--line)] rounded-[7px] py-[12px] px-[14px] focus:border-[var(--green)] focus:outline-none focus:ring-1 focus:ring-[var(--green)]"
                 />
                 {errors.message && (
                   <p className="text-[12px] text-[#b91c1c] mt-[5px]">{errors.message}</p>
                 )}
+                {errors.api && (
+                  <p className="text-[12px] text-[#b91c1c] mt-[5px] font-medium">{errors.api}</p>
+                )}
               </div>
 
-              {validationPassed && (
-                <div className="p-4 rounded-[7px] bg-[#eef6ec] border border-[#b9d6c4] flex items-start gap-3 text-[13px] text-[#145a45]">
-                  <CheckCircle2 className="w-5 h-5 shrink-0 mt-0.5" />
+              {submissionResult && (
+                <div
+                  className={`p-4 rounded-[7px] border flex items-start gap-3 text-[13px] ${
+                    submissionResult.success
+                      ? "bg-[#eef6ec] border-[#b9d6c4] text-[#145a45]"
+                      : "bg-[#fef2f2] border-[#fecaca] text-[#991b1b]"
+                  }`}
+                >
+                  {submissionResult.success ? (
+                    <CheckCircle2 className="w-5 h-5 shrink-0 mt-0.5 text-[#145a45]" />
+                  ) : (
+                    <AlertCircle className="w-5 h-5 shrink-0 mt-0.5 text-[#991b1b]" />
+                  )}
                   <div>
-                    <strong>Validation Successful:</strong> All required fields satisfy institutional formatting standards. Active email dispatch will be connected in Phase 03 with Supabase & edge functions.
+                    <strong>
+                      {submissionResult.success ? "Submission Confirmed: " : "Submission Blocked: "}
+                    </strong>
+                    {submissionResult.message}
+                    {submissionResult.inquiryId && (
+                      <div className="mt-1 font-mono text-[11px] opacity-80">
+                        Record ID: {submissionResult.inquiryId}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
 
               <div className="pt-2 flex justify-end">
-                <Button type="submit" variant="primary" size="lg">
-                  Validate Inquiry Structure →
+                <Button type="submit" variant="primary" size="lg" disabled={isSubmitting}>
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin inline" />
+                      Persisting Inquiry...
+                    </>
+                  ) : (
+                    "Submit Institutional Inquiry →"
+                  )}
                 </Button>
               </div>
             </form>
@@ -192,12 +271,13 @@ export default function ContactPage() {
               <div className="text-[13px] text-[var(--ink)] space-y-1 border-t border-[var(--line)] pt-3">
                 <p className="my-0"><strong>Domain:</strong> Healthcare & Life Sciences</p>
                 <p className="my-0"><strong>Primary Focus:</strong> Patient Safety & Document Provenance</p>
+                <p className="my-0"><strong>Backend Schema:</strong> 31 Relational PostgreSQL Tables</p>
               </div>
             </div>
 
             <div className="p-6 rounded-[12px] bg-[#faf9f5] border border-[var(--line)] text-[13px] text-[var(--muted)]">
               <strong className="text-[var(--ink)] block mb-1">Authenticity & Privacy Notice:</strong>
-              Do not include Protected Health Information (PHI) or identifiable patient records in web inquiries. Real patient data is strictly handled through authenticated, private institutional workspaces.
+              Do not include Protected Health Information (PHI) or identifiable patient records in web inquiries. Real patient data is strictly handled through authenticated, private institutional workspaces with tenant-isolated Row Level Security.
             </div>
           </div>
         </div>

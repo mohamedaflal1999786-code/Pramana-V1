@@ -29,6 +29,7 @@ export default function MultilingualDischargePage() {
               <option value="hi">हिन्दी (Hindi)</option>
               <option value="zh">中文 (Mandarin)</option>
               <option value="ar">العربية (Arabic)</option>
+              <option value="ta">தமிழ் (Tamil - Planned)</option>
               <option value="fr">Français (French)</option>
             </select>
           </div>

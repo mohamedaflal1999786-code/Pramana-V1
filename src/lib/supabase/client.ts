@@ -1,33 +1,41 @@
 /**
- * Pramana-V1 - Supabase Client Foundation
+ * Pramana-V1 - Supabase Browser Client Singleton
+ * Team: Unknown GenZ
  *
- * Architectural foundation prepared for future phases (Auth, Document Storage, & Database).
- *
- * STRICT AUTHENTICITY NOTICE:
- * In accordance with patient safety and system integrity requirements, no simulated
- * mock databases or fake connections are created here. When valid environment variables
- * are provided in subsequent phases, the verified Supabase client will be initialized.
+ * Safe for client-side React components (app router 'use client').
+ * Enforces Row-Level Security (RLS) under the caller's session.
  */
 
-export interface SupabaseConfigStatus {
-  isConfigured: boolean;
-  missingVariables: string[];
-}
+import { createBrowserClient } from "@supabase/ssr";
+import type { Database } from "@/types/database.types";
+import { getSupabaseConfigStatus } from "./status";
 
-export function getSupabaseConfigStatus(): SupabaseConfigStatus {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  const missing: string[] = [];
+let browserClient: ReturnType<typeof createBrowserClient<Database>> | null = null;
 
-  if (!supabaseUrl || supabaseUrl.includes("your-project.supabase.co")) {
-    missing.push("NEXT_PUBLIC_SUPABASE_URL");
-  }
-  if (!supabaseAnonKey || supabaseAnonKey.includes("placeholder")) {
-    missing.push("NEXT_PUBLIC_SUPABASE_ANON_KEY");
+export function getSupabaseBrowserClient() {
+  if (typeof window === "undefined") {
+    throw new Error(
+      "[Pramana-V1 Security] Browser client attempted to execute in a server-side environment."
+    );
   }
 
-  return {
-    isConfigured: missing.length === 0,
-    missingVariables: missing,
-  };
+  if (browserClient) return browserClient;
+
+  const status = getSupabaseConfigStatus();
+  if (!status.isConfigured) {
+    // Return null or throw clear descriptive error without crashing unconfigured dev views
+    return null;
+  }
+
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const anonKey = (
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+  )!;
+
+  browserClient = createBrowserClient<Database>(url, anonKey);
+  return browserClient;
 }
+
+// Re-export getSupabaseConfigStatus for backwards-compatibility
+export { getSupabaseConfigStatus };
