@@ -5,8 +5,8 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Lock, Key, Server, EyeOff, ShieldCheck, Database } from "lucide-react";
 
 export const metadata = {
-  title: "Security & Privacy — Pramana-V1",
-  description: "Learn about the data governance, encryption, and privacy architecture protecting healthcare records in Pramana-V1.",
+  title: "Security & Privacy Architecture — Pramana-V1",
+  description: "Learn about the planned data governance, encryption goals, and privacy architecture for Pramana-V1.",
 };
 
 export default function SecurityPrivacyPage() {
@@ -17,24 +17,24 @@ export default function SecurityPrivacyPage() {
         <Breadcrumbs items={[{ label: "Security & Privacy" }]} className="mb-6" />
 
         <PageHeader
-          eyebrow="Data Protection Governance"
+          eyebrow="Planned Data Protection Architecture"
           title={
             <>
-              Security & Privacy <span className="font-serif font-normal italic text-[var(--green)]">by Design.</span>
+              Security & Privacy <span className="font-serif font-normal italic text-[var(--green)]">Design Goals.</span>
             </>
           }
-          description="Healthcare intelligence requires the highest tier of confidentiality, data isolation, and accountability. Pramana-V1 is architected to protect sensitive clinical records at every layer."
+          description="Healthcare intelligence requires rigorous confidentiality, data isolation, and accountability. This overview details the intended technical safeguards and data governance specifications guiding Pramana-V1 development."
         />
 
-        {/* Security Pillars */}
+        {/* Intended Security Architecture Pillars */}
         <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-16">
           <div className="tile">
             <div className="w-10 h-10 rounded-full bg-[#e6ede2] text-[var(--green)] flex items-center justify-center mb-4">
               <EyeOff className="w-5 h-5" />
             </div>
-            <h3 className="text-[18px] font-[650] my-0 mb-2">Zero Model Training on Patient Data</h3>
+            <h3 className="text-[18px] font-[650] my-0 mb-2">Zero Model Training Design Goal</h3>
             <p className="text-[13px] text-[var(--muted)] my-0 leading-relaxed">
-              Clinical records processed through Pramana-V1 are never retained, stored, or utilized for training underlying foundation models. Extraction pipelines operate under zero-retention data boundaries.
+              Planned extraction pipelines are specified to operate under strict zero-retention parameters, ensuring processed clinical records are not utilized to train or fine-tune underlying foundation models.
             </p>
           </div>
 
@@ -42,9 +42,9 @@ export default function SecurityPrivacyPage() {
             <div className="w-10 h-10 rounded-full bg-[#e6ede2] text-[var(--green)] flex items-center justify-center mb-4">
               <Lock className="w-5 h-5" />
             </div>
-            <h3 className="text-[18px] font-[650] my-0 mb-2">Enterprise Encryption Standards</h3>
+            <h3 className="text-[18px] font-[650] my-0 mb-2">Target Encryption Standards</h3>
             <p className="text-[13px] text-[var(--muted)] my-0 leading-relaxed">
-              All data in transit is protected using TLS 1.3 encryption. Documents in persistent private storage are secured with industry-standard AES-256 encryption at rest with customer-managed keys.
+              The target architecture specifies TLS 1.3 protocol enforcement for all transmission channels and AES-256 standard encryption for documents stored at rest in institutional storage partitions.
             </p>
           </div>
 
@@ -54,7 +54,7 @@ export default function SecurityPrivacyPage() {
             </div>
             <h3 className="text-[18px] font-[650] my-0 mb-2">Role-Based Access Control (RBAC)</h3>
             <p className="text-[13px] text-[var(--muted)] my-0 leading-relaxed">
-              Granular access controls enforce strict boundaries between clinical reviewers, institutional safety officers, and administrative users. Multi-factor authentication (MFA) is mandatory for clinical accounts.
+              Planned authorization boundaries enforce strict role segregation between clinical attending physicians, reviewing pharmacists, safety officers, and administrative users.
             </p>
           </div>
 
@@ -62,9 +62,9 @@ export default function SecurityPrivacyPage() {
             <div className="w-10 h-10 rounded-full bg-[#e6ede2] text-[var(--green)] flex items-center justify-center mb-4">
               <Database className="w-5 h-5" />
             </div>
-            <h3 className="text-[18px] font-[650] my-0 mb-2">Private Tenant Isolation</h3>
+            <h3 className="text-[18px] font-[650] my-0 mb-2">Planned Tenant Isolation</h3>
             <p className="text-[13px] text-[var(--muted)] my-0 leading-relaxed">
-              Every healthcare institution or research entity operates within isolated database schemas and dedicated document buckets via Supabase private cloud architecture, preventing cross-tenant leakage.
+              Target database architecture specifies schema-level segregation and tenant-specific storage buckets to prevent cross-institutional data commingling.
             </p>
           </div>
 
@@ -72,9 +72,9 @@ export default function SecurityPrivacyPage() {
             <div className="w-10 h-10 rounded-full bg-[#e6ede2] text-[var(--green)] flex items-center justify-center mb-4">
               <Server className="w-5 h-5" />
             </div>
-            <h3 className="text-[18px] font-[650] my-0 mb-2">Immutable Audit Logging</h3>
+            <h3 className="text-[18px] font-[650] my-0 mb-2">Immutable Audit Trail Design</h3>
             <p className="text-[13px] text-[var(--muted)] my-0 leading-relaxed">
-              Every document upload, clinical extraction, provenance query, and professional review decision generates an immutable cryptographic log entry for institutional compliance inspection.
+              The platform design incorporates immutable event logging for all document ingestion, entity extractions, and clinician attestation events to facilitate institutional compliance audits.
             </p>
           </div>
 
@@ -82,23 +82,23 @@ export default function SecurityPrivacyPage() {
             <div className="w-10 h-10 rounded-full bg-[#e6ede2] text-[var(--green)] flex items-center justify-center mb-4">
               <ShieldCheck className="w-5 h-5" />
             </div>
-            <h3 className="text-[18px] font-[650] my-0 mb-2">Automated De-identification</h3>
+            <h3 className="text-[18px] font-[650] my-0 mb-2">Planned De-identification Layer</h3>
             <p className="text-[13px] text-[var(--muted)] my-0 leading-relaxed">
-              Optional pre-processing modules detect and redact standard Safe Harbor identifiers before secondary review workflows, ensuring sensitive personal information is minimized whenever possible.
+              Architecture includes an intended pre-processing filter to detect and redact direct patient identifiers prior to secondary research workflows and provenance analysis.
             </p>
           </div>
         </section>
 
-        {/* Compliance Roadmap & Authenticity Notice */}
+        {/* Intended Compliance Alignment */}
         <section className="p-8 rounded-[12px] bg-[#faf9f5] border border-[var(--line)]">
-          <span className="num">COMPLIANCE READINESS STATEMENT</span>
-          <h2 className="text-[22px] font-[650] my-2">Architectural Alignment with HIPAA & GDPR Standards</h2>
+          <span className="num">RESEARCH DEVELOPMENT STATUS</span>
+          <h2 className="text-[22px] font-[650] my-2">Intended Alignment with Healthcare Privacy Standards</h2>
           <p className="text-[14px] text-[var(--muted)] leading-relaxed mb-4">
-            Pramana-V1 is engineered in accordance with the security and privacy rules of HIPAA (Health Insurance Portability and Accountability Act) and GDPR (General Data Protection Regulation).
+            Pramana-V1 is an independent research-stage technology project. The security safeguards described herein represent intended architectural targets and development specifications.
           </p>
           <div className="p-4 rounded-[8px] bg-white border border-[var(--line)] text-[13px] text-[var(--muted)]">
-            <strong className="text-[var(--ink)] block mb-1">Strict Authenticity Note:</strong>
-            As a research-stage platform, formal institutional deployment requires institutional Business Associate Agreements (BAAs), security risk assessments, and clinical IRB review prior to handling live patient records in production clinical wards.
+            <strong className="text-[var(--ink)] block mb-1">Authenticity & Disclosure Notice:</strong>
+            Pramana-V1 does not claim active third-party security certifications (e.g. SOC2, ISO 27001), active HIPAA certification, or completed clinical trial validations. Prior to deployment with live patient data, formal institutional risk evaluations, Institutional Review Board (IRB) approvals, and executed Business Associate Agreements (BAAs) are required.
           </div>
         </section>
       </main>

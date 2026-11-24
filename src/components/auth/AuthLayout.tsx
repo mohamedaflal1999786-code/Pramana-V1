@@ -50,21 +50,21 @@ export function AuthLayout({
             Every decision deserves <em className="font-serif font-normal italic text-[#a3cbaf]">evidence.</em>
           </h1>
           <p className="text-[16px] text-[#c3d8c8] leading-relaxed mb-8">
-            Secure access to institutional safety provenance graphs, cross-record discrepancy detection, and traceable clinical review.
+            Access institutional safety provenance graphs, cross-record discrepancy detection, and traceable clinical review.
           </p>
 
           <div className="space-y-3 pt-6 border-t border-[#779185]/50 text-[13px] text-[#b6d0bd]">
             <div className="flex items-center gap-3">
               <ShieldCheck className="w-4 h-4 text-[#85b397] shrink-0" />
-              <span>Human-in-the-loop clinical oversight & verification</span>
+              <span>Design Goal: Human-in-the-loop oversight & professional review</span>
             </div>
             <div className="flex items-center gap-3">
               <Lock className="w-4 h-4 text-[#85b397] shrink-0" />
-              <span>Zero foundation model training on Protected Health Information</span>
+              <span>Target Architecture: Zero foundation model training on clinical records</span>
             </div>
             <div className="flex items-center gap-3">
               <CheckCircle2 className="w-4 h-4 text-[#85b397] shrink-0" />
-              <span>Cryptographic document provenance & audit tracking</span>
+              <span>Intended Specification: Cryptographic document provenance tracking</span>
             </div>
           </div>
         </div>
@@ -73,7 +73,7 @@ export function AuthLayout({
         <div className="relative z-10 text-[12px] text-[#b6d0bd] flex items-center justify-between">
           <span>Unknown GenZ · Research Platform</span>
           <Link href="/security-privacy" className="hover:underline">
-            Security & Privacy Charter
+            Security & Privacy Specifications
           </Link>
         </div>
       </div>
