@@ -1,39 +1,26 @@
 "use client";
 
 import { useState } from "react";
-import type { NavItem } from "@/types";
-
-const NAV_LINKS: NavItem[] = [
-  { label: "Platform", href: "#platform" },
-  { label: "How it works", href: "#workflow" },
-  { label: "Responsible AI", href: "#principles" },
-  { label: "About", href: "#about" },
-];
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 export default function Header() {
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
+  const pathname = usePathname();
 
-  const toggleMenu = () => {
-    setIsMenuOpen((prev) => !prev);
-  };
-
-  const closeMenu = () => {
-    setIsMenuOpen(false);
-  };
+  const navLinks = [
+    { label: "Platform", href: "/platform" },
+    { label: "How it works", href: "/how-it-works" },
+    { label: "Responsible AI", href: "/responsible-ai" },
+    { label: "Security", href: "/security-privacy" },
+    { label: "About", href: "/about" },
+  ];
 
   return (
-    <header className="sticky top-0 z-50 bg-[#faf9f5f5] border-b border-[var(--line)] backdrop-blur-[12px]">
-      <nav className="wrap min-h-[80px] max-md:min-h-[68px] flex items-center justify-between gap-6 relative">
-        <a
-          className="brand flex items-center gap-[10px] text-[25px] max-md:text-[22px] font-[750] tracking-[-1.4px] text-[var(--ink)]"
-          href="#home"
-        >
-          <svg
-            className="w-[34px] h-[34px]"
-            viewBox="0 0 40 40"
-            fill="none"
-            aria-hidden="true"
-          >
+    <header>
+      <nav className="wrap">
+        <Link className="brand" href="/">
+          <svg viewBox="0 0 40 40" fill="none" aria-hidden="true">
             <path
               d="M20 3 35 10v11c0 8-7 13-15 16C12 34 5 29 5 21V10Z"
               stroke="#145a45"
@@ -47,43 +34,60 @@ export default function Header() {
             />
           </svg>
           pramana
-          <span className="text-[12px] tracking-normal text-[var(--muted)] font-normal">
+          <span style={{ fontSize: "12px", letterSpacing: "0", color: "#53665d" }}>
             V1
           </span>
-        </a>
+        </Link>
 
         <button
-          className="menu hidden max-md:block bg-transparent border border-[var(--line)] p-[9px] rounded-[5px] text-[var(--ink)] cursor-pointer text-sm font-semibold"
-          aria-expanded={isMenuOpen}
+          className="menu"
+          aria-expanded={isOpen}
           aria-controls="navlinks"
-          onClick={toggleMenu}
+          onClick={() => setIsOpen((prev) => !prev)}
         >
           Menu
         </button>
 
-        <div
-          id="navlinks"
-          className={`links flex gap-[28px] text-[14px] ${
-            isMenuOpen
-              ? "max-md:flex max-md:flex-col max-md:absolute max-md:top-[68px] max-md:left-0 max-md:right-0 max-md:bg-[var(--paper)] max-md:p-6 max-md:border-b max-md:border-[var(--line)] max-md:shadow-sm"
-              : "max-md:hidden"
-          }`}
-        >
-          {NAV_LINKS.map((link) => (
-            <a
+        <div className={`links ${isOpen ? "open" : ""}`} id="navlinks">
+          {navLinks.map((link) => (
+            <Link
               key={link.href}
               href={link.href}
-              onClick={closeMenu}
-              className="text-[var(--ink)] hover:text-[var(--green)] transition-colors py-1 max-md:py-2"
+              onClick={() => setIsOpen(false)}
+              className={pathname === link.href ? "text-[var(--green)] font-[650]" : ""}
             >
               {link.label}
-            </a>
+            </Link>
           ))}
+          <div className="md:hidden pt-4 mt-2 border-t border-[var(--line)] flex flex-col gap-3">
+            <Link
+              href="/auth/signin"
+              onClick={() => setIsOpen(false)}
+              className="text-[14px] font-[650] text-[var(--ink)]"
+            >
+              Sign in
+            </Link>
+            <Link
+              href="/auth/signup"
+              onClick={() => setIsOpen(false)}
+              className="btn text-center justify-center"
+            >
+              Get started ↗
+            </Link>
+          </div>
         </div>
 
-        <a className="btn max-md:hidden" href="#platform">
-          Explore platform ↗
-        </a>
+        <div className="flex items-center gap-4 max-md:hidden">
+          <Link
+            href="/auth/signin"
+            className="text-[14px] font-[650] text-[var(--ink)] hover:text-[var(--green)] transition-colors py-2 px-1"
+          >
+            Sign in
+          </Link>
+          <Link className="btn" href="/auth/signup">
+            Get started ↗
+          </Link>
+        </div>
       </nav>
     </header>
   );

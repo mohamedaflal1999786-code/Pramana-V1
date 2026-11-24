@@ -1,63 +1,25 @@
-import type { FeatureItem } from "@/types";
-
-const SECONDARY_FEATURES: FeatureItem[] = [
-  {
-    id: "extract",
-    tag: "02 / DOCUMENTS",
-    title: "Intelligent extraction",
-    description:
-      "Structure clinical documents while keeping the original source available for correction and verification.",
-  },
-  {
-    id: "safety",
-    tag: "03 / SAFETY",
-    title: "Medication & handoff checks",
-    description:
-      "Surface documented allergy conflicts, medication discrepancies and missing transfer information.",
-  },
-  {
-    id: "continuity",
-    tag: "04 / CONTINUITY",
-    title: "Longitudinal records",
-    description:
-      "Organize laboratory trends and clinical history for professional assessment.",
-  },
-  {
-    id: "communication",
-    tag: "05 / COMMUNICATION",
-    title: "Accessible discharge guidance",
-    description:
-      "Support multilingual explanations of professionally approved instructions.",
-  },
-];
-
 export default function PlatformFeatures() {
   return (
     <section id="platform" className="section wrap">
       <div className="eyebrow">The platform</div>
-      <h2 className="text-[clamp(34px,4.5vw,58px)] leading-[1.08] tracking-[-0.05em] font-[650] max-w-[760px] my-4 mb-6">
-        Clarity across the care journey.
-      </h2>
+      <h2>Clarity across the care journey.</h2>
       <p className="intro">
         Important details can be lost between prescriptions, reports and
         transfer summaries. Pramana-V1 is designed to connect these records and
         surface discrepancies for review.
       </p>
-
-      <div className="features grid grid-cols-[1.15fr_1fr] max-md:grid-cols-1 gap-4 mt-10">
-        <article className="tile big row-span-2 max-md:row-span-1">
+      <div className="features">
+        <article className="tile big">
           <div>
             <span className="num">01 / CORE INNOVATION</span>
-            <h3 className="text-[24px] tracking-[-0.8px] my-4 mb-[10px]">
-              Safety Provenance Graph
-            </h3>
-            <p className="text-[var(--muted)] mb-0">
+            <h3>Safety Provenance Graph</h3>
+            <p>
               Trace a potential concern back to its source document, extracted
               information and applicable reference rule.
             </p>
           </div>
           <svg
-            className="mini w-full max-h-[180px] mt-[30px]"
+            className="mini"
             viewBox="0 0 400 150"
             role="img"
             aria-label="Source document connected to evidence and review"
@@ -73,12 +35,7 @@ export default function PlatformFeatures() {
               <rect x="145" y="50" width="110" height="50" rx="8" />
               <rect x="285" y="50" width="110" height="50" rx="8" />
             </g>
-            <g
-              fontSize="13"
-              textAnchor="middle"
-              fill="#244b39"
-              fontWeight="500"
-            >
+            <g fontSize="13" textAnchor="middle" fill="#244b39">
               <text x="60" y="79">
                 Document
               </text>
@@ -91,16 +48,38 @@ export default function PlatformFeatures() {
             </g>
           </svg>
         </article>
-
-        {SECONDARY_FEATURES.map((feature) => (
-          <article key={feature.id} className="tile">
-            <span className="num">{feature.tag}</span>
-            <h3 className="text-[24px] tracking-[-0.8px] my-4 mb-[10px]">
-              {feature.title}
-            </h3>
-            <p className="text-[var(--muted)] mb-0">{feature.description}</p>
-          </article>
-        ))}
+        <article className="tile">
+          <span className="num">02 / DOCUMENTS</span>
+          <h3>Intelligent extraction</h3>
+          <p>
+            Structure clinical documents while keeping the original source
+            available for correction and verification.
+          </p>
+        </article>
+        <article className="tile">
+          <span className="num">03 / SAFETY</span>
+          <h3>Medication & handoff checks</h3>
+          <p>
+            Surface documented allergy conflicts, medication discrepancies and
+            missing transfer information.
+          </p>
+        </article>
+        <article className="tile">
+          <span className="num">04 / CONTINUITY</span>
+          <h3>Longitudinal records</h3>
+          <p>
+            Organize laboratory trends and clinical history for professional
+            assessment.
+          </p>
+        </article>
+        <article className="tile">
+          <span className="num">05 / COMMUNICATION</span>
+          <h3>Accessible discharge guidance</h3>
+          <p>
+            Support multilingual explanations of professionally approved
+            instructions.
+          </p>
+        </article>
       </div>
     </section>
   );

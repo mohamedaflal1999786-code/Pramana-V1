@@ -1,22 +1,19 @@
 export default function HeroSection() {
   return (
-    <section className="hero wrap grid grid-cols-[1.05fr_1fr] max-md:grid-cols-1 gap-12 max-md:gap-[30px] items-center pt-[88px] pb-[92px] max-md:py-[55px]">
+    <section className="hero wrap">
       <div>
         <div className="eyebrow">Evidence-driven healthcare intelligence</div>
-        <h1 className="text-[clamp(48px,6vw,88px)] leading-[1.02] tracking-[-0.065em] my-[22px] mb-[26px] font-[650] text-[var(--ink)]">
+        <h1>
           Every decision
           <br />
-          deserves{" "}
-          <em className="font-serif font-normal text-[var(--green)] not-italic">
-            evidence.
-          </em>
+          deserves <em>evidence.</em>
         </h1>
         <p className="lead">
           Connect fragmented clinical information, identify potential safety
           concerns and bring the original evidence into every professional
           review.
         </p>
-        <div className="actions flex gap-3 flex-wrap mt-8">
+        <div className="actions">
           <a className="btn" href="#platform">
             Explore the platform →
           </a>
@@ -24,17 +21,15 @@ export default function HeroSection() {
             How it works
           </a>
         </div>
-        <p className="note text-[12px] text-[var(--muted)] mt-[22px]">
+        <p className="note">
           Research-stage software · Designed for human oversight
         </p>
       </div>
-
-      <div className="art bg-[#e7ece1] rounded-[18px] overflow-hidden relative aspect-[1/1.04] max-md:aspect-[1.15] grid place-items-center">
+      <div className="art">
         <svg
           viewBox="0 0 560 520"
           role="img"
           aria-label="Conceptual illustration of documents connected to an evidence verification shield"
-          className="w-full h-auto"
         >
           <defs>
             <linearGradient id="g" x2="1" y2="1">
@@ -147,9 +142,7 @@ export default function HeroSection() {
             <path d="M413 368q17-24 34 0" />
           </g>
         </svg>
-        <div className="artlabel absolute bottom-5 left-6 text-[11px] tracking-[1.4px] text-[#365b4a] font-semibold">
-          01 / THE EVIDENCE NETWORK · CONCEPT
-        </div>
+        <div className="artlabel">01 / THE EVIDENCE NETWORK · CONCEPT</div>
       </div>
     </section>
   );
