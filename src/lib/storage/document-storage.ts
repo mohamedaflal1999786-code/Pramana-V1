@@ -3,10 +3,12 @@
  * Team: Unknown GenZ
  *
  * Implements server-side validation, safe filename handling, SHA-256 hashing,
- * randomized object IDs, safe XML parsing guards (XXE prevention), and short-lived signed URLs.
+ * randomized object IDs, safe XML parsing guards (XXE prevention), Supabase private
+ * bucket uploads, and short-lived signed URLs.
  */
 
 import crypto from "crypto";
+import { getSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export const MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024; // 25 MB
 
@@ -17,6 +19,8 @@ export const ALLOWED_MIME_TYPES = [
   "application/xml",
   "text/xml",
   "application/hl7-v2+er7",
+  "image/jpeg",
+  "image/png",
 ] as const;
 
 export type AllowedMimeType = (typeof ALLOWED_MIME_TYPES)[number];
@@ -35,7 +39,6 @@ export interface FileValidationResult {
  * Sanitizes input filename to prevent directory traversal and filesystem attacks.
  */
 export function sanitizeFilename(filename: string): string {
-  // Strip null bytes, paths, and dangerous characters
   const basename = filename.split(/[/\\]/).pop() || "unnamed_document";
   return basename
     .replace(/[^\w.-]/g, "_")
@@ -47,7 +50,6 @@ export function sanitizeFilename(filename: string): string {
  * Validates XML content to prevent XML External Entity (XXE) injection attacks.
  */
 export function checkXmlSafety(content: string): { isSafe: boolean; reason?: string } {
-  // Check for dangerous DTD entity declarations
   if (/<!DOCTYPE[^>]*\[[^\]]*<!ENTITY[^>]*>/i.test(content)) {
     return { isSafe: false, reason: "Forbidden DTD ENTITY declaration detected (XXE protection)." };
   }
@@ -64,7 +66,8 @@ export function validateClinicalDocument(
   buffer: Buffer,
   originalFilename: string,
   declaredMimeType: string,
-  organizationId: string
+  organizationId: string,
+  patientId: string = "00000000-0000-0000-0000-000000000002"
 ): FileValidationResult {
   const errors: string[] = [];
   const fileSizeBytes = buffer.length;
@@ -78,22 +81,30 @@ export function validateClinicalDocument(
     );
   }
 
-  // 2. MIME type verification against strict whitelist
+  // 2. Normalize declared MIME
   let detectedMime = declaredMimeType.toLowerCase().trim() as AllowedMimeType;
-  if (!ALLOWED_MIME_TYPES.includes(detectedMime)) {
-    errors.push(`MIME type '${declaredMimeType}' is not supported. Supported: ${ALLOWED_MIME_TYPES.join(", ")}`);
-  }
+  const lowerName = originalFilename.toLowerCase();
 
   // 3. Inspect magic bytes / file signatures
   const headerHex = buffer.subarray(0, 16).toString("hex").toLowerCase();
   const headerUtf8 = buffer.subarray(0, 512).toString("utf8");
 
-  if (originalFilename.toLowerCase().endsWith(".pdf") || declaredMimeType === "application/pdf") {
+  if (lowerName.endsWith(".pdf") || declaredMimeType === "application/pdf") {
     if (!headerUtf8.startsWith("%PDF-")) {
       errors.push("PDF header signature '%PDF-' missing or invalid.");
     }
     detectedMime = "application/pdf";
-  } else if (originalFilename.toLowerCase().endsWith(".json") || declaredMimeType === "application/json") {
+  } else if (lowerName.endsWith(".jpg") || lowerName.endsWith(".jpeg") || declaredMimeType.includes("jpeg")) {
+    if (!headerHex.startsWith("ffd8ff")) {
+      errors.push("Invalid JPEG image header signature.");
+    }
+    detectedMime = "image/jpeg";
+  } else if (lowerName.endsWith(".png") || declaredMimeType === "image/png") {
+    if (!headerHex.startsWith("89504e470d0a1a0a")) {
+      errors.push("Invalid PNG image header signature.");
+    }
+    detectedMime = "image/png";
+  } else if (lowerName.endsWith(".json") || declaredMimeType === "application/json") {
     try {
       JSON.parse(buffer.toString("utf8"));
       detectedMime = "application/json";
@@ -101,7 +112,7 @@ export function validateClinicalDocument(
       errors.push("Invalid JSON structure: failed JSON parser validation.");
     }
   } else if (
-    originalFilename.toLowerCase().endsWith(".xml") ||
+    lowerName.endsWith(".xml") ||
     declaredMimeType === "application/xml" ||
     declaredMimeType === "text/xml"
   ) {
@@ -111,21 +122,28 @@ export function validateClinicalDocument(
       errors.push(`XML security policy violation: ${safetyCheck.reason}`);
     }
     detectedMime = "application/xml";
-  } else if (originalFilename.toLowerCase().endsWith(".hl7")) {
+  } else if (lowerName.endsWith(".hl7")) {
     if (!headerUtf8.startsWith("MSH|")) {
       errors.push("HL7 v2 document missing expected 'MSH|' segment header.");
     }
     detectedMime = "application/hl7-v2+er7";
+  } else if (lowerName.endsWith(".txt") || declaredMimeType === "text/plain") {
+    detectedMime = "text/plain";
+  }
+
+  if (!ALLOWED_MIME_TYPES.includes(detectedMime)) {
+    errors.push(`MIME type '${declaredMimeType}' is not supported. Supported: ${ALLOWED_MIME_TYPES.join(", ")}`);
   }
 
   // 4. Cryptographic integrity hash (SHA-256)
-  const sha256Hash = crypto.createHash("sha256").update(buffer).digest("hex");
+  const sha256Hash = Buffer.isBuffer(buffer)
+    ? crypto.createHash("sha256").update(buffer).digest("hex")
+    : "0000000000000000000000000000000000000000000000000000000000000000";
 
-  // 5. Sanitized filename & randomized storage object identifier
+  // 5. Sanitized filename & tenant-scoped storage path
   const sanitized = sanitizeFilename(originalFilename);
-  const fileExt = sanitized.split(".").pop() || "bin";
   const randomStorageKey = crypto.randomUUID();
-  const storagePath = `${organizationId}/${randomStorageKey}.${fileExt}`;
+  const storagePath = `${organizationId}/${patientId}/${randomStorageKey}/${sanitized}`;
 
   return {
     isValid: errors.length === 0,
@@ -136,4 +154,67 @@ export function validateClinicalDocument(
     storagePath,
     errors,
   };
+}
+
+/**
+ * Uploads a validated clinical document buffer into the private Supabase storage bucket
+ */
+export async function uploadToClinicalStorage(
+  buffer: Buffer,
+  storagePath: string,
+  mimeType: string
+): Promise<{ success: boolean; error?: string }> {
+  const admin = getSupabaseAdminClient();
+  if (!admin) {
+    return { success: false, error: "Supabase storage client unavailable." };
+  }
+
+  const { error } = await admin.storage
+    .from("clinical-documents")
+    .upload(storagePath, buffer, {
+      contentType: mimeType,
+      upsert: false,
+    });
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  return { success: true };
+}
+
+/**
+ * Generates an authorized, short-lived signed URL to view a private clinical document
+ */
+export async function generateSignedDocumentUrl(
+  storagePath: string,
+  expiresInSeconds: number = 900 // 15 minutes default
+): Promise<string | null> {
+  const admin = getSupabaseAdminClient();
+  if (!admin) return null;
+
+  const { data, error } = await admin.storage
+    .from("clinical-documents")
+    .createSignedUrl(storagePath, expiresInSeconds);
+
+  if (error || !data) {
+    console.error("[Storage Signed URL Error]:", error?.message);
+    return null;
+  }
+
+  return data.signedUrl;
+}
+
+/**
+ * Deletes a file from the private clinical storage bucket
+ */
+export async function deleteFromClinicalStorage(storagePath: string): Promise<boolean> {
+  const admin = getSupabaseAdminClient();
+  if (!admin) return false;
+
+  const { error } = await admin.storage
+    .from("clinical-documents")
+    .remove([storagePath]);
+
+  return !error;
 }

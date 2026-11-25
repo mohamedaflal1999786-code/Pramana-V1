@@ -58,7 +58,9 @@ export type AllowedMimeType =
   | "application/json"
   | "application/xml"
   | "text/xml"
-  | "application/hl7-v2+er7";
+  | "application/hl7-v2+er7"
+  | "image/jpeg"
+  | "image/png";
 
 export type ExtractionStatus =
   | "queued"
