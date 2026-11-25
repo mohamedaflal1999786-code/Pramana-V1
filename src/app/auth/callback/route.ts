@@ -12,7 +12,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");
-  const next = requestUrl.searchParams.get("next") || "/workspaces/doctor";
+  
 
   if (code) {
     const supabase = await createSupabaseServerClient();
@@ -20,8 +20,7 @@ export async function GET(request: NextRequest) {
       const { error } = await supabase.auth.exchangeCodeForSession(code);
       if (!error) {
         // Safe internal redirect
-        const safeNext = next.startsWith("/") && !next.startsWith("//") ? next : "/workspaces/doctor";
-        return NextResponse.redirect(new URL(safeNext, requestUrl.origin));
+        return NextResponse.redirect(new URL("/auth/signin", "https://pramana-v1.vercel.app"));
       }
       console.error("[Auth Callback Error] Code exchange failed:", error.message);
     }
