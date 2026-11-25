@@ -42,10 +42,10 @@ export default function SignUpPage() {
       return;
     }
     if (!formData.email.includes("@")) {
-      setError("Please provide a valid institutional email address.");
+      setError("Please provide a valid email address.");
       return;
     }
-    if (!formData.institution.trim()) {
+    if (formData.role !== "patient" && !formData.institution.trim()) {
       setError("Please specify your health system or research institution.");
       return;
     }
@@ -93,7 +93,7 @@ export default function SignUpPage() {
     <AuthLayout
       eyebrow="Institutional Onboarding"
       title="Request Workspace Access"
-      subtitle="Create a verified clinical research account. Professional credentials require institutional authorization."
+      subtitle="Create a verified clinical research account. All accounts require email verification and administrator approval."
       footerLinks={
         <p className="my-0">
           Already have an authorized account?{" "}
@@ -112,8 +112,8 @@ export default function SignUpPage() {
         )}
 
         <Input
-          label="Full Professional Name"
-          placeholder="Dr. Eleanor Vance"
+          label="Full Name"
+          placeholder="Your full name"
           leftIcon={<User className="w-4 h-4" />}
           value={formData.fullName}
           onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
@@ -121,24 +121,24 @@ export default function SignUpPage() {
         />
 
         <Input
-          label="Institutional Email"
+          label="Email Address"
           type="email"
-          placeholder="e.vance@medicalcenter.org"
+          placeholder="you@example.com"
           leftIcon={<Mail className="w-4 h-4" />}
           value={formData.email}
           onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-          helperText="Personal emails (@gmail, @yahoo) are not permitted for clinical access."
+          helperText="Personal and work email addresses are accepted. Access requires verification and administrator approval."
           required
         />
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Input
-            label="Health System / Institution"
-            placeholder="Mayo Clinic / Lab"
+            label={formData.role === "patient" ? "Hospital or clinic (optional)" : "Hospital / Clinic / Workplace"}
+            placeholder="Hospital, clinic or workplace"
             leftIcon={<Building2 className="w-4 h-4" />}
             value={formData.institution}
             onChange={(e) => setFormData({ ...formData, institution: e.target.value })}
-            required
+            required={formData.role !== "patient"}
           />
           <Select
             label="Requested Role"
