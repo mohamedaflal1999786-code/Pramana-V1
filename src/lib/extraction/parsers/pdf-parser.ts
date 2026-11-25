@@ -6,7 +6,7 @@
  * Preserves page numbering, character offsets, extracts metadata, and identifies scanned pages requiring OCR.
  */
 
-import { extractText, getMeta } from "unpdf";
+
 import type { ParsedPage } from "../types";
 
 export interface PdfParseResult {
@@ -30,13 +30,16 @@ export async function parsePdfDocument(buffer: Buffer | Uint8Array): Promise<Pdf
     ? buffer
     : new Uint8Array(buffer);
 
+  const { extractText, getMeta, getDocumentProxy } = await import("unpdf");
+  const pdf = await getDocumentProxy(data);
+  try {
   // 1. Extract text page-by-page cleanly without DOMMatrix / canvas dependencies
-  const { totalPages, text: pageTexts } = await extractText(data, { mergePages: false });
+  const { totalPages, text: pageTexts } = await extractText(pdf, { mergePages: false });
 
   // 2. Extract document metadata safely
   let metaInfo: Record<string, any> = {};
   try {
-    const meta = await getMeta(data);
+    const meta = await getMeta(pdf);
     metaInfo = meta?.info || {};
   } catch {
     // Non-fatal fallback for PDFs without standard metadata dictionary
@@ -78,4 +81,5 @@ export async function parsePdfDocument(buffer: Buffer | Uint8Array): Promise<Pdf
     },
     hasScannedPages,
   };
+  } finally { await pdf.destroy(); }
 }
