@@ -190,13 +190,13 @@ export function WorkspaceLayout({
         </header>
 
         {mobileMenuOpen && createPortal(
-          <div className="fixed inset-0 lg:hidden" style={{zIndex:2147483000}} role="dialog" aria-modal="true" aria-label="Workspace menu">
+          <div className="fixed inset-0 lg:hidden" style={{position:"fixed",inset:0,zIndex:2147483647,isolation:"isolate"}} role="dialog" aria-modal="true" aria-label="Workspace menu">
             <button type="button" aria-label="Close navigation" className="absolute inset-0 bg-black/40" onClick={()=>setMobileMenuOpen(false)} />
-            <nav id="mobile-workspace-menu" aria-label="Workspace navigation" className="absolute left-0 top-0 bottom-0 w-80 max-w-[85vw] bg-white shadow-xl overflow-y-auto p-5 space-y-3" style={{display:"block",minHeight:0,zIndex:1,overscrollBehavior:"contain"}}>
+            <div id="mobile-workspace-menu" aria-label="Workspace navigation" className="absolute left-0 top-0 bottom-0 w-80 max-w-[85vw] bg-white shadow-xl overflow-y-auto p-5 space-y-3" style={{position:"absolute",top:0,bottom:0,left:0,width:"min(320px, 85vw)",display:"flex",flexDirection:"column",alignItems:"stretch",justifyContent:"flex-start",gap:8,minHeight:0,zIndex:1,overflowY:"auto",background:"#fff",overscrollBehavior:"contain"}}>
               <div className="flex items-center justify-between mb-5"><strong>Workspace navigation</strong><button type="button" aria-label="Close menu" onClick={()=>setMobileMenuOpen(false)}><X className="w-5 h-5"/></button></div>
               {[...roleLinks,...visibleModules].map(m=><Link key={m.href} href={m.href} onClick={()=>setMobileMenuOpen(false)} className={cn("flex items-center gap-3 p-3 rounded-lg text-sm font-semibold",pathname===m.href?"bg-[var(--green)] text-white":"hover:bg-[#faf9f5]")}>{m.icon}{m.label}</Link>)}
               <button type="button" className="p-3 text-sm font-semibold" onClick={()=>{setMobileMenuOpen(false);setProfileModalOpen(true)}}>Account settings</button>
-            </nav>
+            </div>
           </div>, document.body
         )}
         {/* Account & Security Modal */}
