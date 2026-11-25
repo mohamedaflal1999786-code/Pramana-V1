@@ -61,7 +61,7 @@ function VerifyEmailContent() {
 
       <div className="space-y-2">
         <h3 className="text-[18px] font-[650] text-[var(--ink)] my-0">
-          Check Your Institutional Inbox
+          Check Your Email Inbox
         </h3>
         <p className="text-[14px] text-[var(--muted)] leading-relaxed max-w-sm mx-auto">
           We have dispatched a cryptographic confirmation link to{" "}
@@ -88,8 +88,8 @@ function VerifyEmailContent() {
         <div className="font-[650] text-[var(--ink)]">Verification Checklist:</div>
         <ul className="list-disc list-inside text-[var(--muted)] space-y-1 pl-1">
           <li>Check your spam / junk folder if the email does not arrive within 2 minutes.</li>
-          <li>Verification links expire after 24 hours for institutional security.</li>
-          <li>Ensure you open the link on an authorized clinical device.</li>
+          <li>Use the newest verification link before it expires.</li>
+          <li>After verification, sign in using your assigned portal.</li>
         </ul>
       </div>
 
@@ -110,7 +110,7 @@ function VerifyEmailContent() {
 
         <Link href="/auth/signin">
           <Button variant="ghost" className="w-full text-[13px]">
-            ← Return to Institutional Sign In
+            ← Return to Sign In
           </Button>
         </Link>
       </div>
@@ -122,7 +122,7 @@ export default function VerifyEmailPage() {
   return (
     <AuthLayout
       eyebrow="Security Step"
-      title="Verify Institutional Email"
+      title="Verify Email Address"
       subtitle="Complete your email verification before accessing patient safety workspaces."
       footerLinks={
         <p className="my-0">
