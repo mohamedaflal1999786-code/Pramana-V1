@@ -286,7 +286,7 @@ export async function signOutAction(): Promise<AuthActionResult> {
 export async function requestPasswordResetAction(email: string): Promise<AuthActionResult> {
   const cleanEmail = email?.trim().toLowerCase();
   if (!cleanEmail || !cleanEmail.includes("@")) {
-    return { success: false, error: "Please provide a valid institutional email address." };
+    return { success: false, error: "Please provide a valid email address." };
   }
 
   if (!checkRateLimit(`reset:${cleanEmail}`, 3, 60000)) {
