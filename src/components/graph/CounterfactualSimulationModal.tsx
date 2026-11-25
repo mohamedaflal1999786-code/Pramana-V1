@@ -210,13 +210,13 @@ export function CounterfactualSimulationModal({
               <div className="p-2.5 bg-white border border-[var(--line)] rounded-[6px]">
                 <span className="text-[10px] text-[var(--muted)] block">Baseline Alerts Triggered</span>
                 <span className="text-[18px] font-[700] text-[#991b1b]">
-                  {simulationResult.originalFindings.length}
+                  {simulationResult.summary.originalFindingsCount}
                 </span>
               </div>
               <div className="p-2.5 bg-white border border-[var(--line)] rounded-[6px]">
                 <span className="text-[10px] text-[var(--muted)] block">Simulated Alerts Triggered</span>
                 <span className="text-[18px] font-[700] text-[#145a45]">
-                  {simulationResult.simulatedFindings.length}
+                  {simulationResult.summary.simulatedFindingsCount}
                 </span>
               </div>
             </div>
@@ -224,27 +224,27 @@ export function CounterfactualSimulationModal({
             <div className="space-y-1">
               <span className="text-[11px] font-[650] text-[#145a45] flex items-center gap-1">
                 <CheckCircle2 className="w-3.5 h-3.5" />
-                Alerts Resolved in Hypothetical State ({simulationResult.resolvedFindings.length}):
+                Alerts Resolved in Hypothetical State ({simulationResult.diff.resolvedFindings.length}):
               </span>
-              {simulationResult.resolvedFindings.length === 0 ? (
+              {simulationResult.diff.resolvedFindings.length === 0 ? (
                 <p className="text-[11px] text-[var(--muted)] italic pl-4">No alerts resolved in this scenario.</p>
               ) : (
                 <ul className="list-disc list-inside text-[11px] text-[var(--ink)] pl-2 space-y-0.5">
-                  {simulationResult.resolvedFindings.map((f, i) => (
-                    <li key={i}>{f.label}</li>
+                  {simulationResult.diff.resolvedFindings.map((f, i) => (
+                    <li key={i}>{f.label || f.description}</li>
                   ))}
                 </ul>
               )}
             </div>
 
-            {simulationResult.newAlertsTriggered.length > 0 && (
+            {simulationResult.diff.newFindings.length > 0 && (
               <div className="space-y-1">
                 <span className="text-[11px] font-[650] text-[#b91c1c] flex items-center gap-1">
                   <AlertTriangle className="w-3.5 h-3.5" />
-                  New Emergent Alerts ({simulationResult.newAlertsTriggered.length}):
+                  New Emergent Alerts ({simulationResult.diff.newFindings.length}):
                 </span>
                 <ul className="list-disc list-inside text-[11px] text-[var(--ink)] pl-2 space-y-0.5">
-                  {simulationResult.newAlertsTriggered.map((f, i) => (
+                  {simulationResult.diff.newFindings.map((f, i) => (
                     <li key={i}>{f.label}</li>
                   ))}
                 </ul>
@@ -271,3 +271,4 @@ export function CounterfactualSimulationModal({
     </div>
   );
 }
+

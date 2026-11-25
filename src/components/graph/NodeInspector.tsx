@@ -53,14 +53,20 @@ export function NodeInspector({
 
   const getStatusBadge = () => {
     switch (node.status) {
-      case "active":
-        return <Badge variant="verified">Active & Grounded</Badge>;
+      case "verified":
+        return <Badge variant="verified">Cryptographically Verified</Badge>;
       case "stale":
       case "requires_reassessment":
         return <Badge variant="danger">Requires Reassessment</Badge>;
       case "invalidated":
       case "superseded":
         return <Badge variant="danger">Invalidated / Superseded</Badge>;
+      case "pending_review":
+        return <Badge variant="pending">Pending Clinical Attestation</Badge>;
+      case "endorsed":
+        return <Badge variant="verified">Attested by Clinician</Badge>;
+      case "rejected":
+        return <Badge variant="discrepancy">Rejected in Review</Badge>;
       default:
         return <Badge variant="default">{node.status}</Badge>;
     }
@@ -234,3 +240,4 @@ export function NodeInspector({
     </div>
   );
 }
+

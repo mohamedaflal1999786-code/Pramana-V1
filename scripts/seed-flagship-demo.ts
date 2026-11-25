@@ -88,18 +88,20 @@ async function seed() {
 
   // 2. Ensure Clinical Document Exists
   console.log('2. Upserting clinical document...');
-  const textBytes = Buffer.byteLength(ADMISSION_NOTE_TEXT, 'utf-8');
   await admin.from('clinical_documents').upsert({
     id: DEMO_DOC_ID,
     organization_id: DEFAULT_ORG_ID,
     patient_id: DEMO_PATIENT_ID,
     title: 'Inpatient Admission Note & Medication History',
-    document_type: 'discharge_summary',
-    mime_type: 'text/plain',
-    file_size_bytes: textBytes,
+    document_type: 'admission_note',
     storage_path: `documents/${DEFAULT_ORG_ID}/${DEMO_DOC_ID}/admission_note_v1.txt`,
     current_version_number: 1,
-    quarantine_status: 'validated',
+    status: 'analyzed',
+    metadata: {
+      fileSize: ADMISSION_NOTE_TEXT.length,
+      mimeType: 'text/plain',
+      checksumSha256: IntegrityService.computeSha256(ADMISSION_NOTE_TEXT),
+    },
   });
 
   // 3. Document Version 1
@@ -270,3 +272,4 @@ async function seed() {
 }
 
 seed().catch(console.error);
+

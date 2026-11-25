@@ -75,11 +75,11 @@ async function runE2E() {
   assert(findingNodes.length >= 2, `Test 6: Clinical Safety Findings in SPG (${findingNodes.length} active findings)`);
 
   // Test 7: Reverse Lineage Tracing
-  const activeFindingWithEdges = findingNodes.find(f => spg.edges.some(e => e.sourceNodeId === f.id || e.targetNodeId === f.id)) || findingNodes[0];
-  const lineage = await LineageEngine.traceEvidenceLineage(activeFindingWithEdges.id, DEFAULT_ORG_ID);
+  const firstFinding = findingNodes[0];
+  const lineage = await LineageEngine.traceEvidenceLineage(firstFinding.id, DEFAULT_ORG_ID);
   assert(
-    !!lineage.findingNode,
-    `Test 7: Reverse Evidence Lineage Traced Finding (${lineage.findingNode.label})`
+    !!lineage.finding && (lineage.entities.length > 0 || lineage.rule !== null),
+    `Test 7: Reverse Evidence Lineage Traced to Source (Finding -> Rule -> Entities)`
   );
 
   // Test 8: Verbatim Source Evidence Grounding
@@ -96,36 +96,30 @@ async function runE2E() {
   assert(!!firstDocNode, 'Test 9: Clinical Document Node Found in Graph');
   const impact = await ImpactAnalyzer.runForwardImpactAnalysis(firstDocNode!.id, DEFAULT_ORG_ID);
   assert(
-    impact.sourceNodeId === firstDocNode!.id,
+    impact.sourceNode.id === firstDocNode!.id,
     `Test 9: Forward Impact Dependency Traversal Initiated from Root Document`
   );
 
-  // Test 10: Graph Snapshot & Integrity Checksum
-  const checksumBefore = IntegrityService.computeGraphChecksum(
-    spg.nodes.map(n => ({ id: n.id, label: n.label, status: n.status })),
-    spg.edges.map(e => ({ sourceNodeId: e.sourceNodeId, targetNodeId: e.targetNodeId, relationshipType: e.relationshipType }))
-  );
-  assert(typeof checksumBefore === 'string' && checksumBefore.length === 64, 'Test 10: Snapshot Canonical SHA-256 Checksum Computed');
+  // Test 10: Dynamic Invalidation Engine
+  const snapshotBefore = await InvalidationEngine.captureGraphSnapshot(DEMO_PATIENT_ID, DEFAULT_ORG_ID, 'pre_e2e_test');
+  assert(!!snapshotBefore.id && snapshotBefore.nodeCount > 0, 'Test 10: Pre-invalidation Snapshot Captured & Checksummed');
 
   // Test 11: Counterfactual Simulation
   const simResult = await SimulationEngine.runSimulation({
     patientId: DEMO_PATIENT_ID,
     organizationId: DEFAULT_ORG_ID,
-    scenarioName: 'Titrate Lisinopril to Safe Ceiling (20mg daily)',
-    hypothesisType: 'correct_entity_dosage',
-    description: 'Verify therapeutic excess alert resolution upon dosage titration',
-    hypotheticalChanges: { entityName: 'Lisinopril', newValue: '20mg daily' },
+    scenarioName: 'E2E Withhold Warfarin Test',
+    hypothesisType: 'remove_entity',
+    description: 'Verify bleeding alert resolution upon Warfarin removal',
+    hypotheticalChanges: { removeEntityNames: ['Warfarin', 'warfarin'] },
   });
   assert(
-    simResult.resolvedFindings.length > 0 || simResult.originalFindings.length > 0,
-    `Test 11: Counterfactual Simulation Evaluated (Zero Mutation Verified, ${simResult.resolvedFindings.length} resolved)`
+    simResult.diff.resolvedFindings.length > 0,
+    `Test 11: Counterfactual Simulation Resolved Bleeding Alert (Zero Mutation Verified)`
   );
 
   // Test 12: Cryptographic SHA-256 Canonical Checksumming
-  const checksum = IntegrityService.computeGraphChecksum(
-    spg.nodes.map(n => ({ id: n.id, label: n.label, status: n.status })),
-    spg.edges.map(e => ({ sourceNodeId: e.sourceNodeId, targetNodeId: e.targetNodeId, relationshipType: e.relationshipType }))
-  );
+  const checksum = IntegrityService.computeGraphStateChecksum(spg.nodes, spg.edges);
   assert(
     typeof checksum === 'string' && checksum.length === 64,
     `Test 12: SHA-256 Canonical Checksum Validated (${checksum.slice(0, 16)}...)`
