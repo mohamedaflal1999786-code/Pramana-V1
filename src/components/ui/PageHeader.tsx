@@ -17,7 +17,7 @@ export function PageHeader({
   className,
 }: PageHeaderProps) {
   return (
-    <header className={cn("pb-8 mb-8 border-b border-[var(--line)]", className)}>
+    <div className={cn("pb-8 mb-8 border-b border-[var(--line)]", className)}>
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div className="max-w-[760px]">
           {eyebrow && <div className="eyebrow mb-2">{eyebrow}</div>}
@@ -32,6 +32,6 @@ export function PageHeader({
         </div>
         {actions && <div className="flex items-center gap-3 shrink-0 flex-wrap">{actions}</div>}
       </div>
-    </header>
+    </div>
   );
 }
