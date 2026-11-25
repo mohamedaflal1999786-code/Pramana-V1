@@ -27,6 +27,17 @@ import { executeDocumentExtraction } from "@/lib/extraction/engine";
 import type { ReviewStatus, ClinicalEntityType } from "@/lib/extraction/types";
 import type { DocumentType } from "@/types/database.types";
 
+async function authorizedDocumentOrg() {
+  const supabase = await createSupabaseServerClient();
+  const admin = getSupabaseAdminClient();
+  if (!supabase || !admin) return null;
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+  const { data: member, error } = await admin.from("organization_members").select("organization_id,role_id,is_active").eq("user_id",user.id).maybeSingle();
+  if (error || !member?.is_active || !["doctor","pharmacist","institutional_admin","platform_admin"].includes(member.role_id)) return null;
+  return member.organization_id;
+}
+
 export interface DocumentUploadResponse {
   success: boolean;
   documentId?: string;
@@ -82,7 +93,8 @@ export async function uploadClinicalDocumentAction(
 
   const arrayBuffer = await file.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
-  const defaultOrgId = "00000000-0000-0000-0000-000000000001";
+  const defaultOrgId = await authorizedDocumentOrg();
+  if (!defaultOrgId) return { success: false, error: "Authorized clinical membership required." };
 
   // Server-side validation
   const validation = validateClinicalDocument(
@@ -104,6 +116,9 @@ export async function uploadClinicalDocumentAction(
   if (!admin) {
     return { success: false, error: "Admin database client unavailable." };
   }
+
+  const { data: patient, error: patientError } = await admin.from("patients").select("id").eq("id",patientId).eq("organization_id",defaultOrgId).maybeSingle();
+  if (patientError || !patient) return { success: false, error: "Patient not available in authorized organization." };
 
   // Duplicate detection by SHA-256 within the institution
   const { data: existingVersion } = await admin
@@ -243,7 +258,8 @@ export async function uploadClinicalDocumentAction(
   });
 
   return {
-    success: true,
+    success: extraction.success,
+    error: extraction.success ? undefined : "Extraction failed. Document retained for investigation.",
     documentId: docId,
     versionNumber: 1,
     sha256Hash: validation.sha256Hash,
@@ -262,7 +278,8 @@ export async function listClinicalDocumentsAction(
   const admin = getSupabaseAdminClient();
   if (!admin) return [];
 
-  const defaultOrgId = "00000000-0000-0000-0000-000000000001";
+  const defaultOrgId = await authorizedDocumentOrg();
+  if (!defaultOrgId) return [];
 
   let query = admin
     .from("clinical_documents")
@@ -310,10 +327,13 @@ export async function getDocumentDetailsAction(documentId: string) {
   const admin = getSupabaseAdminClient();
   if (!admin) return null;
 
+  const org = await authorizedDocumentOrg();
+  if (!org) return null;
   const { data: doc, error: docError } = await admin
     .from("clinical_documents")
     .select("*, patients(mrn, first_name, last_name)")
     .eq("id", documentId)
+    .eq("organization_id", org)
     .single();
 
   if (docError || !doc) return null;
@@ -368,6 +388,8 @@ export async function reviewEntityAction(
   const admin = getSupabaseAdminClient();
   if (!admin) return { success: false, error: "Admin client unavailable." };
 
+  const org = await authorizedDocumentOrg();
+  if (!org) return { success: false, error: "Authorized membership required." };
   const isVerified = reviewAction === "verify";
 
   const { error } = await admin
@@ -375,7 +397,7 @@ export async function reviewEntityAction(
     .update({
       is_verified: isVerified,
     })
-    .eq("id", entityId);
+    .eq("id", entityId).eq("organization_id", org);
 
   if (error) {
     return { success: false, error: error.message };
@@ -406,6 +428,8 @@ export async function deleteClinicalDocumentAction(
   const admin = getSupabaseAdminClient();
   if (!admin) return { success: false, error: "Admin client unavailable." };
 
+  const org = await authorizedDocumentOrg();
+  if (!org) return { success: false, error: "Authorized membership required." };
   const { data: doc } = await admin
     .from("clinical_documents")
     .select("storage_path")
@@ -416,7 +440,7 @@ export async function deleteClinicalDocumentAction(
     await deleteFromClinicalStorage(doc.storage_path);
   }
 
-  const { error } = await admin.from("clinical_documents").delete().eq("id", documentId);
+  const { error } = await admin.from("clinical_documents").delete().eq("id", documentId).eq("organization_id", org);
   if (error) return { success: false, error: error.message };
 
   return { success: true };
