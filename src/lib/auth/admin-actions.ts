@@ -46,20 +46,19 @@ export async function listInstitutionalAccountsAction(organizationId?: string): 
   // Verify caller is an administrator
   const { data: callerMember } = await admin
     .from("organization_members")
-    .select("role_id")
+    .select("role_id, organization_id, is_active")
     .eq("user_id", user.id)
     .single();
 
-  const isCallerAdmin =
-    callerMember?.role_id === "institutional_admin" ||
-    callerMember?.role_id === "platform_admin";
+  const isCallerAdmin = callerMember?.is_active && (callerMember.role_id === "institutional_admin" || callerMember.role_id === "platform_admin");
 
   if (!isCallerAdmin) {
     console.warn("[Admin Security Alert] Unauthorized attempt to list accounts by user:", user.id);
     return [];
   }
 
-  const orgId = organizationId || "00000000-0000-0000-0000-000000000001";
+  const orgId = callerMember!.organization_id;
+  if (organizationId && organizationId !== orgId) return [];
 
   const { data: members, error } = await admin
     .from("organization_members")
@@ -119,17 +118,18 @@ export async function approveAccountAction(
   // Check caller role
   const { data: callerMember } = await admin
     .from("organization_members")
-    .select("role_id")
+    .select("role_id, organization_id, is_active")
     .eq("user_id", user.id)
     .single();
 
   if (
-    callerMember?.role_id !== "institutional_admin" &&
-    callerMember?.role_id !== "platform_admin"
+    !callerMember?.is_active || (callerMember.role_id !== "institutional_admin" && callerMember.role_id !== "platform_admin")
   ) {
     return { success: false, error: "Administrator privileges required to approve accounts." };
   }
 
+  const { data: target } = await admin.from("organization_members").select("role_id").eq("user_id",targetUserId).eq("organization_id",callerMember!.organization_id).maybeSingle();
+  if (!target || !["doctor","pharmacist","patient"].includes(target.role_id) || (assignedRole && assignedRole !== target.role_id)) return {success:false,error:"Invalid account or role."};
   const updatePayload: Record<string, any> = { is_active: true };
   if (assignedRole) {
     updatePayload.role_id = assignedRole;
@@ -138,7 +138,7 @@ export async function approveAccountAction(
   const { error } = await admin
     .from("organization_members")
     .update(updatePayload)
-    .eq("user_id", targetUserId);
+    .eq("user_id", targetUserId).eq("organization_id",callerMember!.organization_id);
 
   if (error) {
     return { success: false, error: error.message };
@@ -146,7 +146,7 @@ export async function approveAccountAction(
 
   // Update Supabase Auth app_metadata so JWT reflects approved state
   await admin.auth.admin.updateUserById(targetUserId, {
-    app_metadata: { role: assignedRole || "doctor", is_active: true },
+    app_metadata: { role: target.role_id, is_active: true },
   });
 
   await logAuditEvent({
@@ -183,10 +183,14 @@ export async function suspendAccountAction(
   const admin = getSupabaseAdminClient();
   if (!admin) return { success: false, error: "Admin client unavailable." };
 
+  const { data: callerMember } = await admin.from("organization_members").select("role_id,organization_id,is_active").eq("user_id",user.id).maybeSingle();
+  if (!callerMember?.is_active || !["institutional_admin","platform_admin"].includes(callerMember.role_id) || user.id === targetUserId) return {success:false,error:"Administrator privileges required."};
+  const { data: target } = await admin.from("organization_members").select("role_id").eq("user_id",targetUserId).eq("organization_id",callerMember.organization_id).maybeSingle();
+  if (!target || !["doctor","pharmacist","patient"].includes(target.role_id)) return {success:false,error:"Invalid target account."};
   const { error } = await admin
     .from("organization_members")
     .update({ is_active: false })
-    .eq("user_id", targetUserId);
+    .eq("user_id", targetUserId).eq("organization_id",callerMember!.organization_id);
 
   if (error) {
     return { success: false, error: error.message };
