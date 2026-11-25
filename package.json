@@ -7,7 +7,7 @@
   },
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "npx --yes tsx@4.20.6 scripts/test-synthetic-ingestion.ts && next build",
     "start": "next start",
     "lint": "next lint",
     "test:e2e": "tsx scripts/test-phase8-e2e.ts",
