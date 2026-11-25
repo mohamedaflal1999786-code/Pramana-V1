@@ -118,6 +118,8 @@ export interface SafetyFinding {
   modelConfidence?: number;
 }
 
+export type ExtractedSafetyFinding = SafetyFinding;
+
 export interface ClinicalContradiction {
   id: string;
   findingDescription: string;

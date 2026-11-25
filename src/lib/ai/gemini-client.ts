@@ -31,7 +31,7 @@ export class AiServiceError extends Error {
 let genAiInstance: GoogleGenerativeAI | null = null;
 
 export function getGeminiModelName(): string {
-  return process.env.GEMINI_MODEL || "gemini-3.5-flash-lite";
+  return process.env.GEMINI_MODEL || "gemini-3.5-flash";
 }
 
 export function isGeminiConfigured(): boolean {
@@ -117,7 +117,7 @@ export async function checkGeminiHealth(): Promise<{
     const model = ai.getGenerativeModel({ model: getGeminiModelName() });
 
     const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("Health check timeout (8s)")), 8000)
+      setTimeout(() => reject(new Error("Health check timeout (15s)")), 15000)
     );
 
     const checkPromise = model.generateContent("Ping. Reply 'PONG'.");

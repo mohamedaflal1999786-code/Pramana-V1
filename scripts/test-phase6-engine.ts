@@ -691,17 +691,15 @@ MEDICATIONS: Lisinopril 10mg daily.`;
     let ruleVersionId = srvList && srvList.length > 0 ? srvList[0].id : null;
 
     if (!ruleVersionId) {
-      const { data: rule } = await adminSupabase.from("safety_rules").select("id").limit(1).maybeSingle();
+      const { data: rule } = await adminSupabase.from("safety_rules").select("id").limit(1).single();
       const newVersionId = crypto.randomUUID();
-      if (rule) {
-        await adminSupabase.from("safety_rule_versions").insert({
-          id: newVersionId,
-          rule_id: rule.id,
-          version_number: 1,
-          definition: { name: "Initial Production Rule Set" },
-        });
-        ruleVersionId = newVersionId;
-      }
+      await adminSupabase.from("safety_rule_versions").insert({
+        id: newVersionId,
+        rule_id: rule.id,
+        version_number: 1,
+        definition: { name: "Initial Production Rule Set" },
+      });
+      ruleVersionId = newVersionId;
     }
 
     // Insert test unverified alert with actual table columns
@@ -712,7 +710,7 @@ MEDICATIONS: Lisinopril 10mg daily.`;
       severity: "critical",
       title: "Test Warfarin + Aspirin Bleeding Risk",
       summary: "Synthetic review transition test",
-      status: "pending_review",
+      status: "unverified",
     });
 
     if (insErr) {
@@ -722,7 +720,7 @@ MEDICATIONS: Lisinopril 10mg daily.`;
     // Simulate Clinician Endorsement
     await adminSupabase
       .from("safety_alerts")
-      .update({ status: "endorsed", updated_at: new Date().toISOString() })
+      .update({ status: "verified", updated_at: new Date().toISOString() })
       .eq("id", testAlertId);
 
     // Record review entry

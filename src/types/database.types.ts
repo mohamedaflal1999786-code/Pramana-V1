@@ -83,7 +83,15 @@ export type ProvenanceNodeType =
   | "versioned_rule"
   | "safety_alert"
   | "clinical_review"
-  | "professional_attestation";
+  | "professional_attestation"
+  | "evidence_span"
+  | "medication_record"
+  | "documented_allergy"
+  | "lab_observation"
+  | "reference_rule"
+  | "clinical_finding"
+  | "discharge_draft"
+  | (string & {});
 
 export type ProvenanceEdgeType =
   | "contains_version"
@@ -93,7 +101,16 @@ export type ProvenanceEdgeType =
   | "reviewed_by"
   | "attested_by"
   | "superseded_by"
-  | "contradicts";
+  | "contradicts"
+  | "CONTAINS_VERSION"
+  | "EXTRACTED_FROM"
+  | "SUPPORTED_BY"
+  | "TRIGGERED"
+  | "EVALUATED_BY"
+  | "REVIEWED_BY"
+  | "CONTRADICTS"
+  | "DERIVED_FROM"
+  | (string & {});
 
 export interface Database {
   public: {

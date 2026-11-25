@@ -98,16 +98,15 @@ export async function runClinicalDocumentAiAnalysisAction(
     }
   }
 
-  // Fetch latest document version
-  const { data: ver } = await admin
+  // Fetch latest document version ID
+  const { data: latestVer } = await admin
     .from("document_versions")
     .select("id")
     .eq("document_id", doc.id)
-    .order("version_number", { ascending: false })
-    .limit(1)
+    .eq("version_number", doc.current_version_number)
     .maybeSingle();
 
-  const docVersionId = ver?.id || doc.id;
+  const docVersionId = latestVer?.id || crypto.randomUUID();
 
   // Create extraction_jobs record
   const jobId = crypto.randomUUID();

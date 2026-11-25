@@ -41,6 +41,13 @@ export default function PendingApprovalPage() {
           </ul>
         </div>
 
+        <div className="p-3 bg-[#f5fbf7] border border-[#c3d8c8] rounded-[7px] text-[13px] text-[#145a45] mb-6 text-left">
+          <p className="font-[650] mb-1">Administrator Notice:</p>
+          <p className="text-[12px] text-[#2c4033] leading-relaxed">
+            If you are the designated platform administrator, click <strong>Sign Out / Switch Account</strong> below and authenticate as <strong>adminpramana@gmail.com</strong>. Administrator accounts are pre-approved with direct access to the Institutional Console.
+          </p>
+        </div>
+
         <div className="flex flex-col gap-3">
           <form
             action={async () => {

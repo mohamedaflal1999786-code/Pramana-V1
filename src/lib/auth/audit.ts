@@ -26,7 +26,10 @@ export type AuditAction =
   | "rbac.role_assigned"
   | "rbac.role_revoked"
   | "security.unauthorized_access_attempt"
-  | "security.privilege_escalation_blocked";
+  | "security.privilege_escalation_blocked"
+  | "spg.evidence_invalidated"
+  | "spg.simulation_executed"
+  | "spg.finding_reviewed";
 
 export interface LogAuditEventParams {
   action: AuditAction;

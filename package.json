@@ -6,9 +6,12 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test:e2e": "tsx scripts/test-phase8-e2e.ts",
+    "seed:demo": "tsx scripts/seed-flagship-demo.ts"
   },
   "dependencies": {
+    "@google/genai": "^2.32.0",
     "@google/generative-ai": "^0.24.1",
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.46.1",

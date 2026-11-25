@@ -47,12 +47,14 @@ export default function ResetPasswordPage() {
     if (hash && hash.includes("access_token")) {
       const hashParams = new URLSearchParams(hash.replace(/^#/, ""));
       const access = hashParams.get("access_token");
-      const refresh = hashParams.get("refresh_token") || undefined;
+      const refresh = hashParams.get("refresh_token") || "";
       if (access) {
         setTokens({ access_token: access, refresh_token: refresh });
         const supabase = getSupabaseBrowserClient();
-        if (supabase && refresh) {
-          supabase.auth.setSession({ access_token: access, refresh_token: refresh }).catch(console.error);
+        if (supabase) {
+          supabase.auth.setSession({ access_token: access, refresh_token: refresh }).catch(() => {
+            // Some recovery tokens do not support setSession without refresh, continue
+          });
         }
       }
     } else {
@@ -212,6 +214,19 @@ export default function ResetPasswordPage() {
       title="Create New Password"
       subtitle="Ensure your new password satisfies institutional healthcare entropy requirements."
     >
+      <div className="p-3 bg-[#f5fbf7] border border-[#c3d8c8] rounded-[7px] text-[13px] text-[#145a45] mb-4 text-left">
+        <div className="flex items-center gap-1.5 font-[650] mb-1">
+          <ShieldCheck className="w-4 h-4 text-[#145a45]" />
+          <span>Administrator Notice</span>
+        </div>
+        <p className="text-[12px] text-[#2c4033] leading-relaxed mb-2">
+          Administrator account <strong>adminpramana@gmail.com</strong> is already confirmed and active. If you already set your password, you can sign in directly without waiting for a recovery link.
+        </p>
+        <Link href="/auth/signin" className="inline-block text-[12px] font-[650] text-[#145a45] underline hover:text-[#0d3d2e]">
+          Sign in now with admin credentials →
+        </Link>
+      </div>
+
       <form onSubmit={handleSubmit} className="space-y-4">
         {error && (
           <div className="p-3 text-[13px] text-[#b91c1c] bg-[#fdf2f2] border border-[#f5c6c6] rounded-[7px] flex items-start gap-2">
