@@ -215,7 +215,7 @@ export async function signUpAction(formData: FormData): Promise<AuthActionResult
 
     // 2. Insert Membership as Pending (is_active = false)
     // Patients can be active by default if registered as patient, but professionals require approval
-    const isPatient = requestedRole === "patient";
+    const isPatient = false;
     await admin.from("organization_members").upsert(
       {
         organization_id: defaultOrgId,
@@ -252,7 +252,7 @@ export async function signUpAction(formData: FormData): Promise<AuthActionResult
 
   return {
     success: true,
-    redirectUrl: requestedRole === "patient" ? "/workspaces/patient" : "/auth/pending-approval",
+    redirectUrl: "/auth/pending-approval",
     message: "Registration received. Pending institutional verification.",
   };
 }
