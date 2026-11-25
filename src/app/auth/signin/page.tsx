@@ -32,7 +32,7 @@ function SignInForm({ portal }: { portal?: string }) {
     setNeedsVerification(false);
 
     if (!email.includes("@")) {
-      setError("Please enter a valid institutional email address.");
+      setError("Please enter a valid email address.");
       return;
     }
     if (password.length < 8) {
@@ -98,9 +98,9 @@ function SignInForm({ portal }: { portal?: string }) {
       )}
 
       <Input
-        label="Institutional Email"
+        label="Email Address"
         type="email"
-        placeholder="reviewer@hospital.org"
+        placeholder="you@example.com"
         leftIcon={<Mail className="w-4 h-4" />}
         value={email}
         onChange={(e) => setEmail(e.target.value)}
