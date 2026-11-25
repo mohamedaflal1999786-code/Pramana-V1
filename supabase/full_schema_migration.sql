@@ -830,8 +830,8 @@ ON CONFLICT (id) DO UPDATE SET
 
 -- Storage Policies: strictly restrict storage object access to authorized organization members
 -- Note: Supabase storage objects table is storage.objects
-CREATE POLICY "Strict Member Clinical Document Read"
-ON storage.objects FOR SELECT
+DROP POLICY IF EXISTS "Strict Member Clinical Document Read" ON storage.objects;
+CREATE POLICY "Strict Member Clinical Document Read" ON storage.objects FOR SELECT
 TO authenticated
 USING (
     bucket_id = 'clinical-documents' AND
@@ -845,8 +845,8 @@ USING (
     )
 );
 
-CREATE POLICY "Strict Clinical Document Ingestion"
-ON storage.objects FOR INSERT
+DROP POLICY IF EXISTS "Strict Clinical Document Ingestion" ON storage.objects;
+CREATE POLICY "Strict Clinical Document Ingestion" ON storage.objects FOR INSERT
 TO authenticated
 WITH CHECK (
     bucket_id = 'clinical-documents' AND
@@ -860,8 +860,8 @@ WITH CHECK (
     )
 );
 
-CREATE POLICY "Strict Discharge Export Read"
-ON storage.objects FOR SELECT
+DROP POLICY IF EXISTS "Strict Discharge Export Read" ON storage.objects;
+CREATE POLICY "Strict Discharge Export Read" ON storage.objects FOR SELECT
 TO authenticated
 USING (
     bucket_id = 'discharge-exports' AND
@@ -1006,11 +1006,13 @@ ALTER TABLE consent_records ENABLE ROW LEVEL SECURITY;
 -- ------------------------------------------------------------------------------
 
 -- Organizations: members can read their own organization details
+DROP POLICY IF EXISTS "org_member_read_org" ON organizations;
 CREATE POLICY "org_member_read_org" ON organizations FOR SELECT
 TO authenticated
 USING (id IN (SELECT get_user_active_org_ids()));
 
 -- Profiles: users can read and update their own profile; colleagues in same org can read
+DROP POLICY IF EXISTS "user_read_own_profile" ON profiles;
 CREATE POLICY "user_read_own_profile" ON profiles FOR SELECT
 TO authenticated
 USING (
@@ -1022,41 +1024,51 @@ USING (
     )
 );
 
+DROP POLICY IF EXISTS "user_update_own_profile" ON profiles;
 CREATE POLICY "user_update_own_profile" ON profiles FOR UPDATE
 TO authenticated
 USING (id = auth.uid())
 WITH CHECK (id = auth.uid());
 
 -- Roles & Permissions: readable by authenticated users
+DROP POLICY IF EXISTS "authenticated_read_roles" ON roles;
 CREATE POLICY "authenticated_read_roles" ON roles FOR SELECT TO authenticated USING (true);
+DROP POLICY IF EXISTS "authenticated_read_permissions" ON permissions;
 CREATE POLICY "authenticated_read_permissions" ON permissions FOR SELECT TO authenticated USING (true);
+DROP POLICY IF EXISTS "authenticated_read_role_permissions" ON role_permissions;
 CREATE POLICY "authenticated_read_role_permissions" ON role_permissions FOR SELECT TO authenticated USING (true);
 
 -- Organization Members: members can view colleagues; admins can manage
+DROP POLICY IF EXISTS "members_read_organization_roster" ON organization_members;
 CREATE POLICY "members_read_organization_roster" ON organization_members FOR SELECT
 TO authenticated
 USING (organization_id IN (SELECT get_user_active_org_ids()));
 
+DROP POLICY IF EXISTS "admins_manage_members" ON organization_members;
 CREATE POLICY "admins_manage_members" ON organization_members FOR ALL
 TO authenticated
 USING (user_has_org_role(organization_id, 'institutional_admin') OR user_has_org_role(organization_id, 'platform_admin'))
 WITH CHECK (user_has_org_role(organization_id, 'institutional_admin') OR user_has_org_role(organization_id, 'platform_admin'));
 
 -- Invitations: institutional admins can manage
+DROP POLICY IF EXISTS "admins_manage_invitations" ON invitations;
 CREATE POLICY "admins_manage_invitations" ON invitations FOR ALL
 TO authenticated
 USING (user_has_org_role(organization_id, 'institutional_admin'))
 WITH CHECK (user_has_org_role(organization_id, 'institutional_admin'));
 
 -- Account Approvals: applicants can view their own; admins review (no self-approval)
+DROP POLICY IF EXISTS "users_read_own_approval_requests" ON account_approval_requests;
 CREATE POLICY "users_read_own_approval_requests" ON account_approval_requests FOR SELECT
 TO authenticated
 USING (user_id = auth.uid() OR user_has_org_role(organization_id, 'institutional_admin'));
 
+DROP POLICY IF EXISTS "users_insert_approval_requests" ON account_approval_requests;
 CREATE POLICY "users_insert_approval_requests" ON account_approval_requests FOR INSERT
 TO authenticated
 WITH CHECK (user_id = auth.uid() AND status = 'pending');
 
+DROP POLICY IF EXISTS "admins_update_approval_requests" ON account_approval_requests;
 CREATE POLICY "admins_update_approval_requests" ON account_approval_requests FOR UPDATE
 TO authenticated
 USING (user_has_org_role(organization_id, 'institutional_admin') AND user_id != auth.uid())
@@ -1067,6 +1079,7 @@ WITH CHECK (user_has_org_role(organization_id, 'institutional_admin') AND user_i
 -- ------------------------------------------------------------------------------
 
 -- Patients: Accessible to clinical staff in the org OR the authorized patient
+DROP POLICY IF EXISTS "clinical_staff_read_patients" ON patients;
 CREATE POLICY "clinical_staff_read_patients" ON patients FOR SELECT
 TO authenticated
 USING (
@@ -1074,16 +1087,19 @@ USING (
     OR user_has_patient_access(id)
 );
 
+DROP POLICY IF EXISTS "clinical_staff_manage_patients" ON patients;
 CREATE POLICY "clinical_staff_manage_patients" ON patients FOR INSERT
 TO authenticated
 WITH CHECK (organization_id IN (SELECT get_user_active_org_ids()) AND user_has_clinical_role(organization_id));
 
 -- Patient Access: users can see their own grants; clinical staff / admins can manage
+DROP POLICY IF EXISTS "patients_view_own_access_grants" ON patient_access;
 CREATE POLICY "patients_view_own_access_grants" ON patient_access FOR SELECT
 TO authenticated
 USING (user_id = auth.uid() OR organization_id IN (SELECT get_user_active_org_ids()));
 
 -- Encounters: Accessible to clinical staff in the org OR authorized patient
+DROP POLICY IF EXISTS "clinical_staff_read_encounters" ON encounters;
 CREATE POLICY "clinical_staff_read_encounters" ON encounters FOR SELECT
 TO authenticated
 USING (
@@ -1092,31 +1108,38 @@ USING (
 );
 
 -- Clinical Documents & Versions: Strictly clinical staff
+DROP POLICY IF EXISTS "clinical_staff_read_documents" ON clinical_documents;
 CREATE POLICY "clinical_staff_read_documents" ON clinical_documents FOR SELECT
 TO authenticated
 USING (organization_id IN (SELECT get_user_active_org_ids()) AND user_has_clinical_role(organization_id));
 
+DROP POLICY IF EXISTS "clinical_staff_insert_documents" ON clinical_documents;
 CREATE POLICY "clinical_staff_insert_documents" ON clinical_documents FOR INSERT
 TO authenticated
 WITH CHECK (organization_id IN (SELECT get_user_active_org_ids()) AND user_has_clinical_role(organization_id));
 
+DROP POLICY IF EXISTS "clinical_staff_read_versions" ON document_versions;
 CREATE POLICY "clinical_staff_read_versions" ON document_versions FOR SELECT
 TO authenticated
 USING (organization_id IN (SELECT get_user_active_org_ids()) AND user_has_clinical_role(organization_id));
 
+DROP POLICY IF EXISTS "clinical_staff_insert_versions" ON document_versions;
 CREATE POLICY "clinical_staff_insert_versions" ON document_versions FOR INSERT
 TO authenticated
 WITH CHECK (organization_id IN (SELECT get_user_active_org_ids()) AND user_has_clinical_role(organization_id));
 
 -- Extraction Jobs, Entities, Medications, Allergies, Labs
+DROP POLICY IF EXISTS "clinical_staff_read_extractions" ON extraction_jobs;
 CREATE POLICY "clinical_staff_read_extractions" ON extraction_jobs FOR SELECT
 TO authenticated
 USING (organization_id IN (SELECT get_user_active_org_ids()) AND user_has_clinical_role(organization_id));
 
+DROP POLICY IF EXISTS "clinical_staff_read_entities" ON clinical_entities;
 CREATE POLICY "clinical_staff_read_entities" ON clinical_entities FOR SELECT
 TO authenticated
 USING (organization_id IN (SELECT get_user_active_org_ids()) AND user_has_clinical_role(organization_id));
 
+DROP POLICY IF EXISTS "clinical_staff_read_medications" ON medications;
 CREATE POLICY "clinical_staff_read_medications" ON medications FOR SELECT
 TO authenticated
 USING (
@@ -1124,6 +1147,7 @@ USING (
     OR user_has_patient_access(patient_id)
 );
 
+DROP POLICY IF EXISTS "clinical_staff_read_allergies" ON allergies;
 CREATE POLICY "clinical_staff_read_allergies" ON allergies FOR SELECT
 TO authenticated
 USING (
@@ -1131,6 +1155,7 @@ USING (
     OR user_has_patient_access(patient_id)
 );
 
+DROP POLICY IF EXISTS "clinical_staff_read_labs" ON lab_results;
 CREATE POLICY "clinical_staff_read_labs" ON lab_results FOR SELECT
 TO authenticated
 USING (
@@ -1143,24 +1168,30 @@ USING (
 -- ------------------------------------------------------------------------------
 
 -- Safety Rules & Versions: readable by all authenticated clinical & administrative staff
+DROP POLICY IF EXISTS "authenticated_read_safety_rules" ON safety_rules;
 CREATE POLICY "authenticated_read_safety_rules" ON safety_rules FOR SELECT TO authenticated USING (true);
+DROP POLICY IF EXISTS "authenticated_read_safety_rule_versions" ON safety_rule_versions;
 CREATE POLICY "authenticated_read_safety_rule_versions" ON safety_rule_versions FOR SELECT TO authenticated USING (true);
 
 -- Safety Alerts: clinical staff only
+DROP POLICY IF EXISTS "clinical_staff_read_alerts" ON safety_alerts;
 CREATE POLICY "clinical_staff_read_alerts" ON safety_alerts FOR SELECT
 TO authenticated
 USING (organization_id IN (SELECT get_user_active_org_ids()) AND user_has_clinical_role(organization_id));
 
+DROP POLICY IF EXISTS "clinical_staff_update_alerts" ON safety_alerts;
 CREATE POLICY "clinical_staff_update_alerts" ON safety_alerts FOR UPDATE
 TO authenticated
 USING (organization_id IN (SELECT get_user_active_org_ids()) AND user_has_clinical_role(organization_id))
 WITH CHECK (organization_id IN (SELECT get_user_active_org_ids()) AND user_has_clinical_role(organization_id));
 
 -- Evidence Nodes & Edges: clinical staff only
+DROP POLICY IF EXISTS "clinical_staff_read_nodes" ON evidence_nodes;
 CREATE POLICY "clinical_staff_read_nodes" ON evidence_nodes FOR SELECT
 TO authenticated
 USING (organization_id IN (SELECT get_user_active_org_ids()) AND user_has_clinical_role(organization_id));
 
+DROP POLICY IF EXISTS "clinical_staff_read_edges" ON evidence_edges;
 CREATE POLICY "clinical_staff_read_edges" ON evidence_edges FOR SELECT
 TO authenticated
 USING (organization_id IN (SELECT get_user_active_org_ids()) AND user_has_clinical_role(organization_id));
@@ -1170,10 +1201,12 @@ USING (organization_id IN (SELECT get_user_active_org_ids()) AND user_has_clinic
 -- ------------------------------------------------------------------------------
 
 -- Clinical Reviews
+DROP POLICY IF EXISTS "clinical_staff_read_reviews" ON clinical_reviews;
 CREATE POLICY "clinical_staff_read_reviews" ON clinical_reviews FOR SELECT
 TO authenticated
 USING (organization_id IN (SELECT get_user_active_org_ids()) AND user_has_clinical_role(organization_id));
 
+DROP POLICY IF EXISTS "doctors_pharmacists_insert_reviews" ON clinical_reviews;
 CREATE POLICY "doctors_pharmacists_insert_reviews" ON clinical_reviews FOR INSERT
 TO authenticated
 WITH CHECK (
@@ -1183,10 +1216,12 @@ WITH CHECK (
 );
 
 -- Handoff Reviews
+DROP POLICY IF EXISTS "clinical_staff_read_handoffs" ON handoff_reviews;
 CREATE POLICY "clinical_staff_read_handoffs" ON handoff_reviews FOR SELECT
 TO authenticated
 USING (organization_id IN (SELECT get_user_active_org_ids()) AND user_has_clinical_role(organization_id));
 
+DROP POLICY IF EXISTS "clinicians_manage_handoffs" ON handoff_reviews;
 CREATE POLICY "clinicians_manage_handoffs" ON handoff_reviews FOR ALL
 TO authenticated
 USING (
@@ -1199,6 +1234,7 @@ WITH CHECK (
 );
 
 -- Discharge Instructions: clinical staff can manage; patients can read verified instructions
+DROP POLICY IF EXISTS "staff_and_patients_read_discharge" ON discharge_instructions;
 CREATE POLICY "staff_and_patients_read_discharge" ON discharge_instructions FOR SELECT
 TO authenticated
 USING (
@@ -1206,12 +1242,14 @@ USING (
     OR (user_has_patient_access(patient_id) AND is_verified = true)
 );
 
+DROP POLICY IF EXISTS "clinicians_manage_discharge" ON discharge_instructions;
 CREATE POLICY "clinicians_manage_discharge" ON discharge_instructions FOR ALL
 TO authenticated
 USING (organization_id IN (SELECT get_user_active_org_ids()) AND user_has_clinical_role(organization_id))
 WITH CHECK (organization_id IN (SELECT get_user_active_org_ids()) AND user_has_clinical_role(organization_id));
 
 -- Discharge Translations: patient can only see professionally approved translations
+DROP POLICY IF EXISTS "read_discharge_translations" ON discharge_translations;
 CREATE POLICY "read_discharge_translations" ON discharge_translations FOR SELECT
 TO authenticated
 USING (
@@ -1227,10 +1265,12 @@ USING (
 );
 
 -- Professional Attestations: read by clinical staff; created by authorized attestor
+DROP POLICY IF EXISTS "clinical_read_attestations" ON professional_attestations;
 CREATE POLICY "clinical_read_attestations" ON professional_attestations FOR SELECT
 TO authenticated
 USING (organization_id IN (SELECT get_user_active_org_ids()) AND user_has_clinical_role(organization_id));
 
+DROP POLICY IF EXISTS "clinicians_insert_attestations" ON professional_attestations;
 CREATE POLICY "clinicians_insert_attestations" ON professional_attestations FOR INSERT
 TO authenticated
 WITH CHECK (
@@ -1244,6 +1284,7 @@ WITH CHECK (
 -- ------------------------------------------------------------------------------
 
 -- Audit Logs: strictly read-only for administrators and safety officers of the org
+DROP POLICY IF EXISTS "admins_safety_officers_read_audit" ON audit_logs;
 CREATE POLICY "admins_safety_officers_read_audit" ON audit_logs FOR SELECT
 TO authenticated
 USING (
@@ -1253,12 +1294,14 @@ USING (
      user_has_org_role(organization_id, 'safety_officer'))
 );
 
+DROP POLICY IF EXISTS "audit_logs_system_insert" ON audit_logs;
 CREATE POLICY "audit_logs_system_insert" ON audit_logs FOR INSERT
 TO authenticated
 WITH CHECK (organization_id IN (SELECT get_user_active_org_ids()) OR organization_id IS NULL);
 
 -- Contact Inquiries:
 -- Anyone (including public/anonymous) can insert a legitimate partnership inquiry
+DROP POLICY IF EXISTS "public_insert_contact_inquiries" ON contact_inquiries;
 CREATE POLICY "public_insert_contact_inquiries" ON contact_inquiries FOR INSERT
 TO anon, authenticated
 WITH CHECK (
@@ -1268,6 +1311,7 @@ WITH CHECK (
 );
 
 -- Only platform administrators can read contact inquiries
+DROP POLICY IF EXISTS "platform_admins_read_contact_inquiries" ON contact_inquiries;
 CREATE POLICY "platform_admins_read_contact_inquiries" ON contact_inquiries FOR SELECT
 TO authenticated
 USING (
@@ -1280,6 +1324,7 @@ USING (
 );
 
 -- Consent Records: accessible by patient and clinical staff
+DROP POLICY IF EXISTS "read_consent_records" ON consent_records;
 CREATE POLICY "read_consent_records" ON consent_records FOR SELECT
 TO authenticated
 USING (
