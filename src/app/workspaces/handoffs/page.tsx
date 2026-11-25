@@ -6,43 +6,170 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/Table";
-import { ArrowRightLeft, FileText, CheckCircle2, AlertTriangle, Clock } from "lucide-react";
+import { ArrowRightLeft, CheckCircle2, AlertTriangle, Clock, Sparkles } from "lucide-react";
+import { runHandoffAiAnalysisAction } from "@/lib/actions/ai-actions";
+import type { HandoffOmissionItem } from "@/lib/ai/types";
 
 export default function ClinicalHandoffsPage() {
+  const [handoffText, setHandoffText] = React.useState("");
+  const [chartText, setChartText] = React.useState(
+    `PRIMARY CHART: Patient Jane Doe, 68F. Encounter #ENC-2026-9901.
+DIAGNOSES: Acute Coronary Syndrome, Type 2 Diabetes Mellitus.
+ALLERGIES: Severe Penicillin allergy (anaphylaxis documented in 2024).
+ACTIVE MEDICATIONS:
+- Warfarin 2.5mg PO daily (Target INR 2.0-3.0)
+- Lisinopril 10mg PO daily
+- Metformin 500mg PO BID
+PENDING LABS & CULTURES:
+- Blood cultures x2 drawn 14:00 (Awaiting 48h final read)
+- Serum Creatinine check scheduled for 06:00 tomorrow
+CODE STATUS: Full Code. Responsible Attending: Dr. Sarah Vance.`
+  );
+  const [omissions, setOmissions] = React.useState<HandoffOmissionItem[]>([]);
+  const [isLoading, setIsLoading] = React.useState(false);
+  const [checkedIds, setCheckedIds] = React.useState<Record<string, boolean>>({});
+
+  const handleRunVerification = async () => {
+    if (!handoffText.trim()) return;
+    setIsLoading(true);
+    try {
+      const res = await runHandoffAiAnalysisAction(
+        "ENC-2026-9901",
+        handoffText,
+        chartText
+      );
+      setOmissions(res.omissions);
+    } catch (err: any) {
+      alert(`Handoff Analysis Failed: ${err.message}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const loadSampleHandoff = () => {
+    setHandoffText(
+      `SBAR TRANSITION SUMMARY:
+Patient Jane Doe stepping down from ICU to Telemetry Ward.
+Condition is stable post-ACS catheterization.
+Continuing cardiac telemetry.
+Medications communicated: Lisinopril and Metformin given today.
+Patient resting comfortably, vital signs within normal limits.`
+    );
+  };
+
+  const toggleCheck = (id: string) => {
+    setCheckedIds((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
+
   return (
     <WorkspaceLayout pageTitle="Clinical Handoffs">
       <PageHeader
-        eyebrow="Care Continuity Auditing"
+        eyebrow="Care Continuity & Shift Auditing"
         title="Clinical Handoff Verification"
-        description="Verify that critical patient safety information, pending diagnostic lab tests, and therapy changes are communicated during shift handoffs and transfers."
+        description="Verify that critical patient safety information, pending diagnostic lab tests, and therapy changes are communicated during shift handoffs using Gemini AI evidence grounding."
+        actions={
+          <div className="flex items-center gap-3">
+            <Button variant="outline" size="sm" onClick={loadSampleHandoff}>
+              Load ICU Step-Down Sample
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleRunVerification}
+              isLoading={isLoading}
+              disabled={!handoffText.trim()}
+              leftIcon={<Sparkles className="w-3.5 h-3.5 text-white" />}
+            >
+              Verify Handoff with Gemini
+            </Button>
+          </div>
+        }
       />
 
-      {/* Handoff SBAR Verification Queue */}
-      <section className="bg-white rounded-[12px] border border-[var(--line)] p-6">
-        <div className="flex items-center justify-between pb-4 mb-4 border-b border-[var(--line)]">
-          <div>
-            <h3 className="text-[17px] font-[650] text-[var(--ink)] my-0">Shift Transition & Transfer Verification</h3>
-            <p className="text-[13px] text-[var(--muted)] my-0">
-              Audit transfer notes against pending diagnostic workups and ICU/Ward step-down orders.
-            </p>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        {/* Left: Input SBAR Note */}
+        <section className="bg-white rounded-[12px] border border-[var(--line)] p-6 space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-[var(--line)]">
+            <h3 className="text-[17px] font-[650] text-[var(--ink)] my-0">
+              Shift Handoff Note (SBAR Format)
+            </h3>
+            <Badge variant="unverified">Draft Input</Badge>
           </div>
-          <Badge variant="unverified">0 Pending Handoffs</Badge>
-        </div>
 
-        <EmptyState
-          icon={<ArrowRightLeft className="w-8 h-8" />}
-          title="No Active Handoff Summaries Loaded"
-          description="Upload an SBAR transfer summary or physician sign-out sheet to audit for incomplete follow-up instructions or omitted chronic therapies."
-          action={
-            <Button variant="outline" size="sm">
-              Ingest Transfer Summary →
-            </Button>
-          }
-        />
-      </section>
+          <textarea
+            value={handoffText}
+            onChange={(e) => setHandoffText(e.target.value)}
+            placeholder="Paste or write the outgoing clinician's shift transfer or sign-out summary here..."
+            className="w-full h-48 p-3 text-[13px] border border-[var(--line)] rounded-[8px] font-sans focus:outline-none focus:border-[var(--green)] resize-none"
+          />
 
-      {/* Handoff Audit Checklist Standard */}
+          <div className="pt-2">
+            <details className="text-[12px] text-[var(--muted)]">
+              <summary className="cursor-pointer font-[650] text-[var(--ink)]">
+                Inspect Source Chart Context (Grounding Reference)
+              </summary>
+              <pre className="mt-2 p-3 bg-[#faf9f5] rounded-[6px] border border-[var(--line)] text-[11px] whitespace-pre-wrap font-mono">
+                {chartText}
+              </pre>
+            </details>
+          </div>
+        </section>
+
+        {/* Right: AI Handoff Safety Audit Results */}
+        <section className="bg-white rounded-[12px] border border-[var(--line)] p-6 space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-[var(--line)]">
+            <h3 className="text-[17px] font-[650] text-[var(--ink)] my-0">
+              Safety Omissions & Checklist
+            </h3>
+            <Badge variant={omissions.length > 0 ? "danger" : "verified"}>
+              {omissions.length > 0 ? `${omissions.length} Omissions Detected` : "Audit Ready"}
+            </Badge>
+          </div>
+
+          {omissions.length === 0 ? (
+            <EmptyState
+              icon={<ArrowRightLeft className="w-8 h-8" />}
+              title="No Handoff Audit Run Yet"
+              description="Click 'Verify Handoff with Gemini' to audit the draft note against the patient's primary medical chart."
+            />
+          ) : (
+            <div className="space-y-3">
+              {omissions.map((item) => (
+                <div
+                  key={item.id}
+                  className="p-4 rounded-[8px] border border-[#f5c6c6] bg-[#fdf2f2] space-y-2"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-[#b91c1c]" />
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-[#991b1b]">
+                        OMITTED: {item.category}
+                      </span>
+                    </div>
+                    <label className="flex items-center gap-1.5 text-[12px] text-[var(--ink)] font-[650] cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={!!checkedIds[item.id]}
+                        onChange={() => toggleCheck(item.id)}
+                        className="rounded text-[var(--green)]"
+                      />
+                      <span>Acknowledge</span>
+                    </label>
+                  </div>
+
+                  <h4 className="text-[14px] font-[650] text-[#991b1b] my-0">{item.item}</h4>
+
+                  <div className="p-2.5 bg-white rounded-[6px] border border-[#f5c6c6] text-[11px] text-[var(--ink)] font-mono">
+                    <strong>Source Evidence: </strong>&ldquo;{item.sourceEvidence.rawQuote}&rdquo;
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
+
+      {/* Handoff Standard Standards */}
       <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="tile">
           <Clock className="w-6 h-6 text-[var(--green)] mb-3" />

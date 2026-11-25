@@ -65,7 +65,7 @@ export async function middleware(request: NextRequest) {
     const roleMetadata = (user.user_metadata?.role as string) || (user.app_metadata?.role as string);
 
     if (pathname.startsWith("/workspaces/admin")) {
-      const allowedRoles = ["institutional_admin", "platform_admin"];
+      const allowedRoles = ["institutional_admin", "platform_admin", "admin"];
       if (roleMetadata && !allowedRoles.includes(roleMetadata)) {
         const deniedUrl = new URL("/auth/access-denied", request.url);
         deniedUrl.searchParams.set("reason", "admin_privilege_required");

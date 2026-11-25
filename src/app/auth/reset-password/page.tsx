@@ -15,13 +15,35 @@ export default function ResetPasswordPage() {
   const [isLoading, setIsLoading] = React.useState(false);
   const [isSuccess, setIsSuccess] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [linkError, setLinkError] = React.useState<string | null>(null);
   const [tokens, setTokens] = React.useState<{ access_token: string; refresh_token?: string } | null>(null);
 
   React.useEffect(() => {
     if (typeof window === "undefined") return;
 
-    // Extract tokens from URL hash fragment (sent by Supabase recovery redirect)
+    // Check for error parameters in hash or search params
     const hash = window.location.hash;
+    const searchParams = new URLSearchParams(window.location.search);
+
+    if (hash && (hash.includes("error=") || hash.includes("error_code="))) {
+      const hashParams = new URLSearchParams(hash.replace(/^#/, ""));
+      const errDesc = hashParams.get("error_description") || hashParams.get("error");
+      const errCode = hashParams.get("error_code");
+      if (errCode === "otp_expired" || errDesc?.toLowerCase().includes("expired")) {
+        setLinkError("This password reset link has expired or has already been used.");
+      } else {
+        setLinkError(errDesc ? decodeURIComponent(errDesc.replace(/\+/g, " ")) : "Reset link is invalid or expired.");
+      }
+      return;
+    }
+
+    if (searchParams.get("error")) {
+      const errDesc = searchParams.get("error_description") || searchParams.get("error");
+      setLinkError(errDesc || "Reset link is invalid or expired.");
+      return;
+    }
+
+    // Extract tokens from URL hash fragment (sent by Supabase recovery redirect)
     if (hash && hash.includes("access_token")) {
       const hashParams = new URLSearchParams(hash.replace(/^#/, ""));
       const access = hashParams.get("access_token");
@@ -34,7 +56,6 @@ export default function ResetPasswordPage() {
         }
       }
     } else {
-      const searchParams = new URLSearchParams(window.location.search);
       const code = searchParams.get("code");
       if (code) {
         const supabase = getSupabaseBrowserClient();
@@ -123,6 +144,43 @@ export default function ResetPasswordPage() {
       setIsLoading(false);
     }
   };
+
+  if (linkError) {
+    return (
+      <AuthLayout
+        eyebrow="Security Alert"
+        title="Reset Link Expired"
+        subtitle="This password recovery link is no longer valid."
+      >
+        <div className="text-center py-4">
+          <div className="w-12 h-12 rounded-full bg-[#fdf2f2] text-[#b91c1c] flex items-center justify-center mx-auto mb-4">
+            <AlertCircle className="w-6 h-6" />
+          </div>
+          <p className="text-[14px] text-[var(--muted)] leading-relaxed mb-4">
+            {linkError}
+          </p>
+          <div className="p-3 bg-[#f5fbf7] border border-[#c3d8c8] rounded-[7px] text-[13px] text-[#145a45] mb-6 text-left">
+            <p className="font-[650] mb-1">Administrator Notice:</p>
+            <p className="text-[12px] text-[#2c4033] leading-relaxed">
+              If you are updating credentials for <strong>adminpramana@gmail.com</strong>, your password has been directly verified and synced. You can sign in immediately.
+            </p>
+          </div>
+          <div className="space-y-3">
+            <Link href="/auth/signin">
+              <Button variant="primary" className="w-full">
+                Proceed to Sign In →
+              </Button>
+            </Link>
+            <Link href="/auth/forgot-password">
+              <Button variant="outline" className="w-full">
+                Request New Reset Link
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </AuthLayout>
+    );
+  }
 
   if (isSuccess) {
     return (

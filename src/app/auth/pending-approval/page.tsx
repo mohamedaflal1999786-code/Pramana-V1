@@ -2,6 +2,7 @@ import Link from "next/link";
 import { AuthLayout } from "@/components/auth/AuthLayout";
 import { Button } from "@/components/ui/Button";
 import { Clock, ShieldCheck, Mail } from "lucide-react";
+import { signOutAction } from "@/lib/auth/actions";
 
 export const metadata = {
   title: "Pending Approval — Pramana-V1",
@@ -41,11 +42,16 @@ export default function PendingApprovalPage() {
         </div>
 
         <div className="flex flex-col gap-3">
-          <Link href="/auth/signin">
-            <Button variant="outline" className="w-full">
+          <form
+            action={async () => {
+              "use server";
+              await signOutAction();
+            }}
+          >
+            <Button type="submit" variant="outline" className="w-full">
               Sign Out / Switch Account
             </Button>
-          </Link>
+          </form>
           <Link href="/contact" className="text-[12px] text-[var(--muted)] hover:text-[var(--ink)]">
             Expedite with Institutional Review Board (IRB) →
           </Link>

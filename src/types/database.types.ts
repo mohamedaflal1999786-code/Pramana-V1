@@ -710,7 +710,7 @@ export interface Database {
           organization_id: string;
           patient_id: string;
           encounter_id?: string | null;
-          rule_version_id: string;
+          rule_version_id?: string | null;
           severity: AlertSeverity;
           title: string;
           summary: string;

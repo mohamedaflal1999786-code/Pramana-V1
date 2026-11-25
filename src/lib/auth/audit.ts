@@ -81,8 +81,8 @@ export async function logAuditEvent(params: LogAuditEventParams): Promise<void> 
       sanitized.user_id = params.userId;
     }
 
-    const isValidUuid = (val?: string) =>
-      val && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+    const isValidUuid = (val?: string | null) =>
+      typeof val === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
 
     const targetEntityId = isValidUuid(params.entityId)
       ? params.entityId
@@ -95,7 +95,6 @@ export async function logAuditEvent(params: LogAuditEventParams): Promise<void> 
       action: params.action,
       entity_type: params.entityType || "auth_session",
       entity_id: targetEntityId,
-      actor_id: isValidUuid(params.userId) ? params.userId : null,
       details: sanitized,
     });
 
