@@ -50,8 +50,8 @@ export function WorkspaceLayout({
     role: string;
     institution: string;
   }>({
-    fullName: "Dr. Eleanor Vance",
-    email: "reviewer@hospital.org",
+    fullName: "Loading account…",
+    email: "",
     role: activeRole,
     institution: "Pramana Academic Health System",
   });
@@ -68,11 +68,11 @@ export function WorkspaceLayout({
       if (user) {
         const metaName = user.user_metadata?.full_name;
         const metaInst = user.user_metadata?.institution;
-        const metaRole = user.app_metadata?.role || user.user_metadata?.requested_role;
+        const metaRole = user.app_metadata?.role;
 
         setUserProfile({
           fullName: metaName || user.email?.split("@")[0] || "Attending Clinician",
-          email: user.email || "clinician@hospital.org",
+          email: user.email || "",
           role: metaRole || activeRole,
           institution: metaInst || "Pramana Academic Health System",
         });
@@ -93,7 +93,9 @@ export function WorkspaceLayout({
     { label: "Admin", href: "/workspaces/admin", icon: <ShieldCheck className="w-4 h-4" /> },
   ];
 
-  const roleLinks = allRoleLinks.filter(r => r.href === `/workspaces/${activeRole}`);
+  const assignedRole = userProfile.role === "platform_admin" || userProfile.role === "institutional_admin" ? "admin" : userProfile.role;
+  const homeRole = ["admin","doctor","pharmacist","patient"].includes(assignedRole) ? assignedRole : activeRole;
+  const roleLinks = allRoleLinks.filter(r => r.href === `/workspaces/${homeRole}`);
   const clinicalModules = [
     { label: "Document Intelligence", href: "/workspaces/documents", icon: <FileText className="w-4 h-4" /> },
     { label: "Safety Provenance Graph", href: "/workspaces/graph", icon: <Network className="w-4 h-4" /> },
@@ -104,7 +106,7 @@ export function WorkspaceLayout({
     { label: "Professional Review", href: "/workspaces/review", icon: <CheckSquare className="w-4 h-4" /> },
   ];
 
-  const visibleModules = activeRole === "patient" ? [] : clinicalModules;
+  const visibleModules = homeRole === "patient" ? [] : clinicalModules;
   React.useEffect(() => { setMobileMenuOpen(false); }, [pathname]);
   return (
     <>
@@ -122,7 +124,7 @@ export function WorkspaceLayout({
                 {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
               </button>
 
-              <Link href={`/workspaces/${activeRole}`} className="flex items-center gap-2.5 text-[20px] font-[750] tracking-[-1px] text-[var(--ink)]">
+              <Link href={`/workspaces/${homeRole}`} className="flex items-center gap-2.5 text-[20px] font-[750] tracking-[-1px] text-[var(--ink)]">
                 <svg className="w-[28px] h-[28px]" viewBox="0 0 40 40" fill="none" aria-hidden="true">
                   <path d="M20 3 35 10v11c0 8-7 13-15 16C12 34 5 29 5 21V10Z" stroke="#145a45" strokeWidth="2.5" />
                   <path d="m12 20 6 6 11-13" stroke="#145a45" strokeWidth="3" strokeLinecap="round" />
