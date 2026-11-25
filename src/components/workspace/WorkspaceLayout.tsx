@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -108,6 +109,14 @@ export function WorkspaceLayout({
 
   const visibleModules = homeRole === "patient" ? [] : clinicalModules;
   React.useEffect(() => { setMobileMenuOpen(false); }, [pathname]);
+  React.useEffect(() => {
+    if (!mobileMenuOpen) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const close = (e: KeyboardEvent) => { if(e.key === "Escape") setMobileMenuOpen(false); };
+    document.addEventListener("keydown",close);
+    return () => { document.body.style.overflow=previous; document.removeEventListener("keydown",close); };
+  }, [mobileMenuOpen]);
   return (
     <>
       <div className="min-h-screen bg-[var(--paper)] flex flex-col text-[var(--ink)]">
@@ -180,15 +189,15 @@ export function WorkspaceLayout({
           </div>
         </header>
 
-        {mobileMenuOpen && (
-          <div className="fixed inset-0 z-50 lg:hidden">
+        {mobileMenuOpen && createPortal(
+          <div className="fixed inset-0 lg:hidden" style={{zIndex:2147483000}} role="dialog" aria-modal="true" aria-label="Workspace menu">
             <button type="button" aria-label="Close navigation" className="absolute inset-0 bg-black/40" onClick={()=>setMobileMenuOpen(false)} />
-            <nav id="mobile-workspace-menu" aria-label="Workspace navigation" className="absolute left-0 top-0 bottom-0 w-80 max-w-[85vw] bg-white shadow-xl overflow-y-auto p-5 space-y-3">
+            <nav id="mobile-workspace-menu" aria-label="Workspace navigation" className="absolute left-0 top-0 bottom-0 w-80 max-w-[85vw] bg-white shadow-xl overflow-y-auto p-5 space-y-3" style={{display:"block",minHeight:0,zIndex:1,overscrollBehavior:"contain"}}>
               <div className="flex items-center justify-between mb-5"><strong>Workspace navigation</strong><button type="button" aria-label="Close menu" onClick={()=>setMobileMenuOpen(false)}><X className="w-5 h-5"/></button></div>
               {[...roleLinks,...visibleModules].map(m=><Link key={m.href} href={m.href} onClick={()=>setMobileMenuOpen(false)} className={cn("flex items-center gap-3 p-3 rounded-lg text-sm font-semibold",pathname===m.href?"bg-[var(--green)] text-white":"hover:bg-[#faf9f5]")}>{m.icon}{m.label}</Link>)}
               <button type="button" className="p-3 text-sm font-semibold" onClick={()=>{setMobileMenuOpen(false);setProfileModalOpen(true)}}>Account settings</button>
             </nav>
-          </div>
+          </div>, document.body
         )}
         {/* Account & Security Modal */}
         {profileModalOpen && (
