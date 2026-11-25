@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { Mail, Lock, AlertCircle, CheckCircle2 } from "lucide-react";
 import { signInAction } from "@/lib/auth/actions";
 
-function SignInForm() {
+function SignInForm({ portal }: { portal?: string }) {
   const searchParams = useSearchParams();
   const returnUrl = searchParams.get("returnUrl") || "";
   const errorParam = searchParams.get("error");
@@ -44,6 +44,7 @@ function SignInForm() {
 
     try {
       const formData = new FormData();
+      if (portal) formData.set("portal", portal);
       formData.set("email", email);
       formData.set("password", password);
       if (rememberMe) formData.set("rememberMe", "true");
@@ -144,11 +145,14 @@ function SignInForm() {
   );
 }
 
-export default function SignInPage() {
+function PortalContent() {
+  const portal = useSearchParams().get("portal") || "";
+  const names: Record<string,string> = {admin:"Administrator",doctor:"Doctor",pharmacist:"Pharmacist",patient:"Patient"};
+  const name = names[portal];
   return (
     <AuthLayout
       eyebrow="Clinical Access"
-      title="Institutional Sign In"
+      title={name ? name + " Sign In" : "Choose your workspace"}
       subtitle="Authenticate with your hospital or research facility credentials to access safety intelligence."
       footerLinks={
         <p className="my-0">
@@ -160,8 +164,10 @@ export default function SignInPage() {
       }
     >
       <React.Suspense fallback={<div className="p-8 text-center text-[13px] text-[var(--muted)]">Loading credentials interface...</div>}>
-        <SignInForm />
+        {name ? <SignInForm portal={portal} /> : <div className="grid gap-3">{Object.entries(names).map(([key,label]) => <Link key={key} href={"/login/"+key} className="block rounded-lg border p-4 font-semibold text-[var(--green)]">{label} Portal →</Link>)}<Link href="/login/public" className="block rounded-lg border p-4">Public Portal →</Link></div>}
       </React.Suspense>
     </AuthLayout>
   );
 }
+
+export default function SignInPage() { return <React.Suspense fallback={<div>Loading...</div>}><PortalContent /></React.Suspense>; }
