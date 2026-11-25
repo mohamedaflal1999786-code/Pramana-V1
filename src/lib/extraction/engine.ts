@@ -261,6 +261,7 @@ export async function executeDocumentExtraction(
     errors.push(`Extraction failed: ${err.message}`);
   }
 
+  if (!fullText.trim() && errors.length === 0) errors.push("No readable text extracted. Scanned PDFs require OCR or a text-based replacement.");
   const duration = Date.now() - startTime;
 
   return {
