@@ -185,6 +185,7 @@ export async function signUpAction(formData: FormData): Promise<AuthActionResult
     email,
     password,
     options: {
+      emailRedirectTo: "https://pramana-v1.vercel.app/auth/callback",
       data: {
         full_name: fullName,
         requested_role: requestedRole,
@@ -302,7 +303,7 @@ export async function requestPasswordResetAction(email: string): Promise<AuthAct
     return { success: false, error: "Authentication service currently unavailable." };
   }
 
-  const origin = process.env.NEXT_PUBLIC_SITE_URL || (process.env.NODE_ENV === "production" ? "https://pramana-v1.vercel.app" : "http://localhost:3000");
+  const origin = "https://pramana-v1.vercel.app";
   const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
     redirectTo: `${origin}/auth/reset-password`,
   });
@@ -421,6 +422,7 @@ export async function resendVerificationAction(email: string): Promise<AuthActio
   const { error } = await supabase.auth.resend({
     type: "signup",
     email: cleanEmail,
+    options: { emailRedirectTo: "https://pramana-v1.vercel.app/auth/callback" },
   });
 
   if (error) {
