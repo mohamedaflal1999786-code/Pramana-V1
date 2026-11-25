@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { WorkspaceGuard } from "./WorkspaceGuard";
+
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { signOutAction } from "@/lib/auth/actions";
 import {
@@ -86,13 +86,14 @@ export function WorkspaceLayout({
     window.location.href = "/auth/signin";
   };
 
-  const roleLinks = [
+  const allRoleLinks = [
     { label: "Doctor", href: "/workspaces/doctor", icon: <Stethoscope className="w-4 h-4" /> },
     { label: "Pharmacist", href: "/workspaces/pharmacist", icon: <Pill className="w-4 h-4" /> },
     { label: "Patient", href: "/workspaces/patient", icon: <User className="w-4 h-4" /> },
     { label: "Admin", href: "/workspaces/admin", icon: <ShieldCheck className="w-4 h-4" /> },
   ];
 
+  const roleLinks = allRoleLinks.filter(r => r.href === `/workspaces/${activeRole}`);
   const clinicalModules = [
     { label: "Document Intelligence", href: "/workspaces/documents", icon: <FileText className="w-4 h-4" /> },
     { label: "Safety Provenance Graph", href: "/workspaces/graph", icon: <Network className="w-4 h-4" /> },
@@ -103,8 +104,10 @@ export function WorkspaceLayout({
     { label: "Professional Review", href: "/workspaces/review", icon: <CheckSquare className="w-4 h-4" /> },
   ];
 
+  const visibleModules = activeRole === "patient" ? [] : clinicalModules;
+  React.useEffect(() => { setMobileMenuOpen(false); }, [pathname]);
   return (
-    <WorkspaceGuard>
+    <>
       <div className="min-h-screen bg-[var(--paper)] flex flex-col text-[var(--ink)]">
         {/* Workspace Top Navigation Bar */}
         <header className="sticky top-0 z-40 bg-white border-b border-[var(--line)]">
@@ -114,12 +117,12 @@ export function WorkspaceLayout({
                 type="button"
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
                 className="lg:hidden p-2 rounded text-[var(--muted)] hover:text-[var(--ink)]"
-                aria-label="Toggle workspace navigation"
+                aria-label="Toggle workspace navigation" aria-expanded={mobileMenuOpen} aria-controls="mobile-workspace-menu"
               >
                 {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
               </button>
 
-              <Link href="/" className="flex items-center gap-2.5 text-[20px] font-[750] tracking-[-1px] text-[var(--ink)]">
+              <Link href={`/workspaces/${activeRole}`} className="flex items-center gap-2.5 text-[20px] font-[750] tracking-[-1px] text-[var(--ink)]">
                 <svg className="w-[28px] h-[28px]" viewBox="0 0 40 40" fill="none" aria-hidden="true">
                   <path d="M20 3 35 10v11c0 8-7 13-15 16C12 34 5 29 5 21V10Z" stroke="#145a45" strokeWidth="2.5" />
                   <path d="m12 20 6 6 11-13" stroke="#145a45" strokeWidth="3" strokeLinecap="round" />
@@ -175,6 +178,16 @@ export function WorkspaceLayout({
           </div>
         </header>
 
+        {mobileMenuOpen && (
+          <div className="fixed inset-0 z-50 lg:hidden">
+            <button type="button" aria-label="Close navigation" className="absolute inset-0 bg-black/40" onClick={()=>setMobileMenuOpen(false)} />
+            <nav id="mobile-workspace-menu" aria-label="Workspace navigation" className="absolute left-0 top-0 bottom-0 w-80 max-w-[85vw] bg-white shadow-xl overflow-y-auto p-5 space-y-3">
+              <div className="flex items-center justify-between mb-5"><strong>Workspace navigation</strong><button type="button" aria-label="Close menu" onClick={()=>setMobileMenuOpen(false)}><X className="w-5 h-5"/></button></div>
+              {[...roleLinks,...visibleModules].map(m=><Link key={m.href} href={m.href} onClick={()=>setMobileMenuOpen(false)} className={cn("flex items-center gap-3 p-3 rounded-lg text-sm font-semibold",pathname===m.href?"bg-[var(--green)] text-white":"hover:bg-[#faf9f5]")}>{m.icon}{m.label}</Link>)}
+              <button type="button" className="p-3 text-sm font-semibold" onClick={()=>{setMobileMenuOpen(false);setProfileModalOpen(true)}}>Account settings</button>
+            </nav>
+          </div>
+        )}
         {/* Account & Security Modal */}
         {profileModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
@@ -298,7 +311,7 @@ export function WorkspaceLayout({
                   Safety Modules
                 </span>
                 <nav className="space-y-1">
-                  {clinicalModules.map((m) => {
+                  {visibleModules.map((m) => {
                     const isActive = pathname === m.href;
                     return (
                       <Link
@@ -346,6 +359,6 @@ export function WorkspaceLayout({
           </main>
         </div>
       </div>
-    </WorkspaceGuard>
+    </>
   );
 }
