@@ -85,7 +85,7 @@ export async function signInAction(
   const email = (formData.get("email") as string)?.trim().toLowerCase();
   const password = formData.get("password") as string;
 
-  if (!email || !password) {
+  if (!email || !password || email.length > 254 || password.length > 256) {
     return { success: false, error: "Email address and password are required." };
   }
 
@@ -102,9 +102,9 @@ export async function signInAction(
   if (error) {
     await logAuditEvent({
       action: "auth.login_failed",
-      details: { email, reason: error.message },
+      details: { reason: "Authentication failed" },
     });
-    return { success: false, error: error.message };
+    return { success: false, error: "Unable to sign in with these credentials." };
   }
 
   const user = data.user;
@@ -113,7 +113,8 @@ export async function signInAction(
   }
 
   // Check email confirmation status
-  if (!user.confirmed_at && !user.email_confirmed_at) {
+  if (!user.email_confirmed_at) {
+    await supabase.auth.signOut();
     return {
       success: false,
       error: "Your email address has not been verified yet. Please check your inbox or request a new verification link.",
@@ -125,7 +126,7 @@ export async function signInAction(
   await logAuditEvent({
     action: "auth.login_success",
     userId: user.id,
-    details: { email: user.email },
+    details: {},
   });
 
   // Determine authorized workspace destination
@@ -164,7 +165,7 @@ export async function signUpAction(formData: FormData): Promise<AuthActionResult
   const requestedRole = (formData.get("role") as UserRole) || "doctor";
   const institution = (formData.get("institution") as string)?.trim();
 
-  if (!fullName || !email || !password) {
+  if (!fullName || fullName.length > 120 || !email || email.length > 254 || !password || password.length > 256 || (institution && institution.length > 160)) {
     return { success: false, error: "Please fill out all required fields." };
   }
 
@@ -224,7 +225,7 @@ export async function signUpAction(formData: FormData): Promise<AuthActionResult
         department: institution || "Clinical Staff",
         is_active: isPatient, // Patients active, professionals pending institutional review
       },
-      { onConflict: "organization_id,user_id" }
+      { onConflict: "organization_id,user_id", ignoreDuplicates: true }
     );
 
     // Audit Signup
@@ -271,7 +272,7 @@ export async function signOutAction(): Promise<AuthActionResult> {
       await logAuditEvent({
         action: "auth.logout",
         userId: user.id,
-        details: { email: user.email },
+        details: {},
       });
     }
 
@@ -386,7 +387,7 @@ export async function updatePasswordAction(
   await logAuditEvent({
     action: "auth.password_reset_completed",
     userId: user.id,
-    details: { email: user.email },
+    details: {},
   });
 
   return {
