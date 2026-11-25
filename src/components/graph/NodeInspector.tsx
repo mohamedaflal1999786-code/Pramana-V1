@@ -52,7 +52,7 @@ export function NodeInspector({
   const isDoc = node.nodeType === "clinical_document" || node.nodeType === "document_version";
 
   const getStatusBadge = () => {
-    switch (node.status) {
+    switch (node.status as string) {
       case "verified":
         return <Badge variant="verified">Cryptographically Verified</Badge>;
       case "stale":

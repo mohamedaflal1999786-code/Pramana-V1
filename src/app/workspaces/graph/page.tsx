@@ -82,11 +82,11 @@ export default function SafetyProvenanceGraphPage() {
     try {
       const lineage = await traceEvidenceLineageAction(findingNodeId);
       const nodeIds = new Set<string>();
-      nodeIds.add(lineage.finding.id);
-      if (lineage.rule) nodeIds.add(lineage.rule.id);
-      lineage.entities.forEach((e) => nodeIds.add(e.id));
-      lineage.evidenceSpans.forEach((s) => nodeIds.add(s.id));
-      lineage.documentVersions.forEach((d) => nodeIds.add(d.id));
+      nodeIds.add(lineage.findingNode.id);
+      if (lineage.ruleNode) nodeIds.add(lineage.ruleNode.id);
+      lineage.entityNodes.forEach((e) => nodeIds.add(e.id));
+      lineage.evidenceSpanNodes.forEach((s) => nodeIds.add(s.id));
+      lineage.documentVersionNodes.forEach((d) => nodeIds.add(d.id));
 
       setHighlightedNodeIds(nodeIds);
       setMode("lineage");
@@ -102,7 +102,7 @@ export default function SafetyProvenanceGraphPage() {
       const nodeIds = new Set<string>();
       nodeIds.add(sourceNodeId);
       impact.affectedFindings.forEach((f) => nodeIds.add(f.id));
-      impact.affectedAttestations.forEach((a) => nodeIds.add(a.id));
+      impact.affectedReviews.forEach((a) => nodeIds.add(a.id));
 
       setHighlightedNodeIds(nodeIds);
       setMode("impact");
@@ -158,7 +158,7 @@ export default function SafetyProvenanceGraphPage() {
     if (!graphData) return [];
     const validIds = new Set(filteredNodes.map((n) => n.id));
     return graphData.edges.filter(
-      (e) => validIds.has(e.fromNodeId) && validIds.has(e.toNodeId)
+      (e) => validIds.has(e.sourceNodeId) && validIds.has(e.targetNodeId)
     );
   }, [graphData, filteredNodes]);
 
