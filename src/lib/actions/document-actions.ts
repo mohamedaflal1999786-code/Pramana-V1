@@ -87,7 +87,7 @@ export async function uploadClinicalDocumentAction(
   const customTitle = (formData.get("title") as string)?.trim();
   const patientId = (formData.get("patientId") as string) || "00000000-0000-0000-0000-000000000002";
 
-  if (!file) {
+  if (!(file instanceof File) || file.size > 25 * 1024 * 1024) {
     return { success: false, error: "No file was attached to the ingestion request." };
   }
 
@@ -296,9 +296,9 @@ export async function listClinicalDocumentsAction(
       patients ( mrn )
     `)
     .eq("organization_id", defaultOrgId)
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false }).limit(100);
 
-  if (searchQuery) {
+  if (searchQuery && searchQuery.length <= 120) {
     query = query.ilike("title", `%${searchQuery}%`);
   }
 
@@ -433,8 +433,14 @@ export async function deleteClinicalDocumentAction(
   const { data: doc } = await admin
     .from("clinical_documents")
     .select("storage_path")
-    .eq("id", documentId)
+    .eq("id", documentId).eq("organization_id", org)
     .single();
+  if (!doc) return {success:false,error:"Document not found."};
+  const supabase = await createSupabaseServerClient();
+  const user = (await supabase?.auth.getUser())?.data.user;
+  if (!user) return {success:false,error:"Authentication required."};
+  const {data:member}=await admin.from("organization_members").select("role_id,is_active").eq("user_id",user.id).eq("organization_id",org).maybeSingle();
+  if (!member?.is_active || !["institutional_admin","platform_admin"].includes(member.role_id)) return {success:false,error:"Administrator required."};
 
   if (doc?.storage_path) {
     await deleteFromClinicalStorage(doc.storage_path);
