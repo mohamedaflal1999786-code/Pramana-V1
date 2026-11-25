@@ -543,7 +543,6 @@ Plan: Send out for repeat HbA1c test.`;
   // ---------------------------------------------------------------------------
   // Test 12: Cross-Document Contradiction Detection
   // ---------------------------------------------------------------------------
-  await new Promise((res) => setTimeout(res, 8000));
   const t12Start = Date.now();
   try {
     const docA = {
@@ -583,7 +582,6 @@ Plan: Send out for repeat HbA1c test.`;
   // ---------------------------------------------------------------------------
   // Test 13: Clinical Handoff Shift Omission Intelligence
   // ---------------------------------------------------------------------------
-  await new Promise((res) => setTimeout(res, 8000));
   const t13Start = Date.now();
   try {
     const sourceChart = `ICU CHART: Jane Doe. ALLERGIES: Penicillin (fatal anaphylaxis). MEDICATIONS: Warfarin 2.5mg daily. PENDING: Blood cultures x2. CODE STATUS: DNR/DNI.`;
@@ -617,7 +615,6 @@ Plan: Send out for repeat HbA1c test.`;
   // ---------------------------------------------------------------------------
   // Test 14: Multilingual Discharge Translation (Tamil & Hindi)
   // ---------------------------------------------------------------------------
-  await new Promise((res) => setTimeout(res, 8000));
   const t14Start = Date.now();
   try {
     const sampleDischarge = "Take Metformin 500mg by mouth twice daily with meals. Call 911 if severe chest pain occurs.";
@@ -645,7 +642,6 @@ Plan: Send out for repeat HbA1c test.`;
   // ---------------------------------------------------------------------------
   // Test 15: Prompt Injection Security Defense
   // ---------------------------------------------------------------------------
-  await new Promise((res) => setTimeout(res, 8000));
   const t15Start = Date.now();
   try {
     const maliciousInjectionChart = `CLINICAL PROGRESS NOTE:
