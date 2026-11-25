@@ -2,125 +2,140 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { AuthLayout } from "@/components/auth/AuthLayout";
 import { Button } from "@/components/ui/Button";
-import { Mail, CheckCircle2 } from "lucide-react";
+import { Mail, CheckCircle2, AlertCircle, RefreshCw } from "lucide-react";
+import { resendVerificationAction } from "@/lib/auth/actions";
 
-export default function VerifyEmailPage() {
+function VerifyEmailContent() {
+  const searchParams = useSearchParams();
+  const emailParam = searchParams.get("email") || "";
+  const errorParam = searchParams.get("error");
+
+  const [email] = React.useState(emailParam);
   const [resendCooldown, setResendCooldown] = React.useState(0);
-  const [verificationCode, setVerificationCode] = React.useState(["", "", "", "", "", ""]);
-  const [isVerifying, setIsVerifying] = React.useState(false);
-  const [isVerified, setIsVerified] = React.useState(false);
+  const [isResending, setIsResending] = React.useState(false);
+  const [statusMessage, setStatusMessage] = React.useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = React.useState<string | null>(
+    errorParam === "token_invalid_or_expired"
+      ? "Your verification link was invalid or has expired. Please request a new verification link below."
+      : null
+  );
 
-  const handleInputChange = (idx: number, val: string) => {
-    if (val.length > 1) val = val[0];
-    const newCode = [...verificationCode];
-    newCode[idx] = val;
-    setVerificationCode(newCode);
+  const handleResend = async () => {
+    if (resendCooldown > 0 || !email) return;
+    setIsResending(true);
+    setStatusMessage(null);
+    setErrorMessage(null);
 
-    if (val && idx < 5) {
-      const nextInput = document.getElementById(`digit-${idx + 1}`);
-      nextInput?.focus();
+    try {
+      const result = await resendVerificationAction(email);
+      if (result.success) {
+        setStatusMessage("Verification link sent! Please check your inbox and spam folder.");
+        setResendCooldown(60);
+        const interval = setInterval(() => {
+          setResendCooldown((prev) => {
+            if (prev <= 1) {
+              clearInterval(interval);
+              return 0;
+            }
+            return prev - 1;
+          });
+        }, 1000);
+      } else {
+        setErrorMessage(result.error || "Failed to resend verification email.");
+      }
+    } catch (err: any) {
+      setErrorMessage(err?.message || "An error occurred.");
+    } finally {
+      setIsResending(false);
     }
   };
 
-  const handleResend = () => {
-    if (resendCooldown > 0) return;
-    setResendCooldown(60);
-    const interval = setInterval(() => {
-      setResendCooldown((prev) => {
-        if (prev <= 1) {
-          clearInterval(interval);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-  };
+  return (
+    <div className="space-y-6 text-center py-2">
+      <div className="w-14 h-14 rounded-full bg-[#e5f1df] text-[#145a45] flex items-center justify-center mx-auto">
+        <Mail className="w-7 h-7" />
+      </div>
 
-  const handleVerify = (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsVerifying(true);
-    setTimeout(() => {
-      setIsVerifying(false);
-      setIsVerified(true);
-    }, 900);
-  };
+      <div className="space-y-2">
+        <h3 className="text-[18px] font-[650] text-[var(--ink)] my-0">
+          Check Your Institutional Inbox
+        </h3>
+        <p className="text-[14px] text-[var(--muted)] leading-relaxed max-w-sm mx-auto">
+          We have dispatched a cryptographic confirmation link to{" "}
+          <strong className="text-[var(--ink)]">{email || "your registered email"}</strong>.
+          Click the link in that email to activate your account.
+        </p>
+      </div>
 
-  if (isVerified) {
-    return (
-      <AuthLayout
-        eyebrow="Verification Confirmed"
-        title="Email Verified"
-        subtitle="Your institutional email has been cryptographically confirmed."
-      >
-        <div className="text-center py-4">
-          <div className="w-12 h-12 rounded-full bg-[#e5f1df] text-[#145a45] flex items-center justify-center mx-auto mb-4">
-            <CheckCircle2 className="w-6 h-6" />
-          </div>
-          <p className="text-[14px] text-[var(--muted)] leading-relaxed mb-6">
-            Your verification attestation has been dispatched. Next, set up Multi-Factor Authentication (MFA) to complete clinical security enrollment.
-          </p>
-          <Link href="/auth/mfa">
-            <Button variant="primary" className="w-full">
-              Proceed to MFA Enrollment →
-            </Button>
-          </Link>
+      {statusMessage && (
+        <div className="p-3 text-[13px] text-[#145a45] bg-[#e5f1df] border border-[#c3d8c8] rounded-[7px] flex items-center justify-center gap-2">
+          <CheckCircle2 className="w-4 h-4 shrink-0" />
+          <span>{statusMessage}</span>
         </div>
-      </AuthLayout>
-    );
-  }
+      )}
 
+      {errorMessage && (
+        <div className="p-3 text-[13px] text-[#b91c1c] bg-[#fdf2f2] border border-[#f5c6c6] rounded-[7px] flex items-center justify-center gap-2">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          <span>{errorMessage}</span>
+        </div>
+      )}
+
+      <div className="p-4 rounded-[8px] bg-[#faf9f5] border border-[var(--line)] text-left text-[13px] space-y-2">
+        <div className="font-[650] text-[var(--ink)]">Verification Checklist:</div>
+        <ul className="list-disc list-inside text-[var(--muted)] space-y-1 pl-1">
+          <li>Check your spam / junk folder if the email does not arrive within 2 minutes.</li>
+          <li>Verification links expire after 24 hours for institutional security.</li>
+          <li>Ensure you open the link on an authorized clinical device.</li>
+        </ul>
+      </div>
+
+      <div className="space-y-3 pt-2">
+        <Button
+          type="button"
+          variant="outline"
+          className="w-full"
+          onClick={handleResend}
+          isLoading={isResending}
+          disabled={resendCooldown > 0}
+          leftIcon={<RefreshCw className={`w-4 h-4 ${isResending ? "animate-spin" : ""}`} />}
+        >
+          {resendCooldown > 0
+            ? `Resend Available in ${resendCooldown}s`
+            : "Resend Verification Link →"}
+        </Button>
+
+        <Link href="/auth/signin">
+          <Button variant="ghost" className="w-full text-[13px]">
+            ← Return to Institutional Sign In
+          </Button>
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+export default function VerifyEmailPage() {
   return (
     <AuthLayout
       eyebrow="Security Step"
       title="Verify Institutional Email"
-      subtitle="Enter the 6-digit verification code sent to your registered clinical email."
+      subtitle="Complete your email verification before accessing patient safety workspaces."
       footerLinks={
         <p className="my-0">
           Need assistance?{" "}
           <Link href="/contact" className="text-[var(--green)] font-[650] hover:underline">
-            Contact Support
+            Contact Safety Officer
           </Link>
         </p>
       }
     >
-      <form onSubmit={handleVerify} className="space-y-6">
-        <div className="flex justify-center gap-2 sm:gap-3">
-          {verificationCode.map((digit, idx) => (
-            <input
-              key={idx}
-              id={`digit-${idx}`}
-              type="text"
-              maxLength={1}
-              value={digit}
-              onChange={(e) => handleInputChange(idx, e.target.value)}
-              className="w-10 h-12 sm:w-12 sm:h-14 text-center text-[20px] font-[750] border border-[var(--line)] rounded-[7px] bg-[#faf9f5] focus:border-[var(--green)] focus:outline-none focus:ring-1 focus:ring-[var(--green)]"
-            />
-          ))}
-        </div>
-
-        <div className="text-center">
-          <button
-            type="button"
-            onClick={handleResend}
-            disabled={resendCooldown > 0}
-            className="text-[13px] text-[var(--green)] font-[650] hover:underline disabled:opacity-50"
-          >
-            {resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : "Resend verification code"}
-          </button>
-        </div>
-
-        <Button
-          type="submit"
-          variant="primary"
-          className="w-full"
-          isLoading={isVerifying}
-          disabled={verificationCode.some((d) => !d)}
-        >
-          Confirm Email Verification →
-        </Button>
-      </form>
+      <React.Suspense fallback={<div className="p-8 text-center text-[13px] text-[var(--muted)]">Loading verification status...</div>}>
+        <VerifyEmailContent />
+      </React.Suspense>
     </AuthLayout>
   );
 }

@@ -5,22 +5,38 @@ import Link from "next/link";
 import { AuthLayout } from "@/components/auth/AuthLayout";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
-import { Mail, ArrowLeft, CheckCircle2 } from "lucide-react";
+import { Mail, ArrowLeft, CheckCircle2, AlertCircle } from "lucide-react";
+import { requestPasswordResetAction } from "@/lib/auth/actions";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = React.useState("");
   const [isLoading, setIsLoading] = React.useState(false);
   const [isSent, setIsSent] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email.includes("@")) return;
+    setError(null);
+    if (!email.includes("@")) {
+      setError("Please enter a valid institutional email address.");
+      return;
+    }
 
     setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
+
+    try {
+      const result = await requestPasswordResetAction(email);
+      if (!result.success) {
+        setError(result.error || "Failed to process password recovery request.");
+        setIsLoading(false);
+        return;
+      }
       setIsSent(true);
-    }, 800);
+    } catch (err: any) {
+      setError(err?.message || "An unexpected error occurred.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   if (isSent) {
@@ -38,14 +54,9 @@ export default function ForgotPasswordPage() {
             If an authorized account is associated with this email, you will receive a secure cryptographic reset link valid for 15 minutes.
           </p>
           <div className="space-y-3">
-            <Link href="/auth/reset-password">
-              <Button variant="primary" className="w-full">
-                Enter Reset Token / Update Password →
-              </Button>
-            </Link>
             <Link href="/auth/signin">
-              <Button variant="outline" className="w-full">
-                Return to Sign In
+              <Button variant="primary" className="w-full">
+                Return to Institutional Sign In →
               </Button>
             </Link>
           </div>
@@ -66,6 +77,13 @@ export default function ForgotPasswordPage() {
       }
     >
       <form onSubmit={handleSubmit} className="space-y-4">
+        {error && (
+          <div className="p-3 text-[13px] text-[#b91c1c] bg-[#fdf2f2] border border-[#f5c6c6] rounded-[7px] flex items-start gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            <span>{error}</span>
+          </div>
+        )}
+
         <Input
           label="Institutional Email"
           type="email"

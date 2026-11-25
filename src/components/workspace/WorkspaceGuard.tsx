@@ -2,16 +2,47 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ShieldAlert, LogIn, Lock } from "lucide-react";
+import { Lock, LogIn, Clock } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 export function WorkspaceGuard({ children }: { children: React.ReactNode }) {
-  // Check if we are running in production or development
-  const isDev = process.env.NODE_ENV !== "production";
-  const [hasDevBypass, setHasDevBypass] = React.useState(isDev);
+  const [isAuthenticated, setIsAuthenticated] = React.useState<boolean | null>(null);
+  const [isPending, setIsPending] = React.useState(false);
 
-  // In production, require actual authentication session
-  if (!hasDevBypass && process.env.NODE_ENV === "production") {
+  React.useEffect(() => {
+    async function checkAuth() {
+      const supabase = getSupabaseBrowserClient();
+      if (!supabase) {
+        setIsAuthenticated(false);
+        return;
+      }
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        setIsAuthenticated(false);
+        return;
+      }
+
+      setIsAuthenticated(true);
+
+      // Check if user is pending
+      const isActive = user.app_metadata?.is_active;
+      if (isActive === false) {
+        setIsPending(true);
+      }
+    }
+    checkAuth();
+  }, []);
+
+  // During initial client-side hydration, render children
+  if (isAuthenticated === null) {
+    return <>{children}</>;
+  }
+
+  if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-[var(--paper)] flex items-center justify-center p-6">
         <div className="max-w-md w-full bg-white p-8 rounded-[12px] border border-[var(--line)] text-center shadow-sm">
@@ -22,7 +53,7 @@ export function WorkspaceGuard({ children }: { children: React.ReactNode }) {
             Institutional Authentication Required
           </h1>
           <p className="text-[14px] text-[var(--muted)] leading-relaxed mb-6">
-            Pramana-V1 clinical workspaces are restricted to authorized healthcare professionals. In production, access strictly enforces verified Supabase Role-Based Access Control (RBAC).
+            Pramana-V1 clinical workspaces are restricted to authorized healthcare professionals. Access strictly enforces verified Supabase Role-Based Access Control (RBAC).
           </p>
           <div className="space-y-3">
             <Link href="/auth/signin">
@@ -41,22 +72,35 @@ export function WorkspaceGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
-  return (
-    <>
-      {/* Development Preview Banner */}
-      <div className="bg-[#16392e] text-[#c3d8c8] px-4 py-2 text-[12px] border-b border-[#2d5648] flex items-center justify-between flex-wrap gap-2">
-        <div className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-[#ad7b36] animate-pulse" />
-          <strong className="text-white">DEVELOPMENT UI PREVIEW:</strong>
-          <span>Evaluating clinical workspace interfaces. In production, Supabase Auth & RBAC are strictly enforced.</span>
-        </div>
-        <div className="flex items-center gap-3">
-          <Link href="/auth/signin" className="hover:text-white underline text-[11px]">
-            Test Production Auth Guard
-          </Link>
+  if (isPending) {
+    return (
+      <div className="min-h-screen bg-[var(--paper)] flex items-center justify-center p-6">
+        <div className="max-w-md w-full bg-white p-8 rounded-[12px] border border-[var(--line)] text-center shadow-sm">
+          <div className="w-14 h-14 rounded-full bg-[#fbf4e8] text-[#8c591c] flex items-center justify-center mx-auto mb-4">
+            <Clock className="w-7 h-7" />
+          </div>
+          <h1 className="text-[22px] font-[650] text-[var(--ink)] my-0 mb-2">
+            Account Pending Approval
+          </h1>
+          <p className="text-[14px] text-[var(--muted)] leading-relaxed mb-6">
+            Your registration is currently pending review by your institutional administrator or safety officer.
+          </p>
+          <div className="space-y-3">
+            <Link href="/auth/pending-approval">
+              <Button variant="primary" className="w-full">
+                View Approval Status →
+              </Button>
+            </Link>
+            <Link href="/auth/signin">
+              <Button variant="outline" className="w-full">
+                Sign In with Different Account
+              </Button>
+            </Link>
+          </div>
         </div>
       </div>
-      {children}
-    </>
-  );
+    );
+  }
+
+  return <>{children}</>;
 }
