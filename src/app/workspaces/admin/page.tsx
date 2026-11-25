@@ -65,6 +65,7 @@ export default function AdminWorkspacePage() {
   };
 
   const handleSuspend = async (userId: string) => {
+    if (!window.confirm("Suspend access for this account?")) return;
     const res = await suspendAccountAction(userId, "Administrative suspension");
     if (res.success) {
       setActionMessage("Account suspended.");
@@ -80,12 +81,12 @@ export default function AdminWorkspacePage() {
       <PageHeader
         eyebrow="Institutional Governance"
         title="Administration & Compliance Console"
-        description="Manage private institutional tenancy, configure Role-Based Access Control (RBAC) policies, and inspect PostgreSQL schema migrations and audit logs."
+        description="Manage registered users, review access requests and maintain institutional account permissions."
         actions={
           <div className="flex gap-2">
             <Link href="/auth/signup">
               <Button variant="primary" size="sm" leftIcon={<Users className="w-4 h-4" />}>
-                Provision Clinician User
+                Registration page
               </Button>
             </Link>
             <Link href="/security-privacy">
@@ -104,63 +105,9 @@ export default function AdminWorkspacePage() {
         </div>
       )}
 
-      {/* Tenancy & Security Status */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="p-6 rounded-[12px] bg-white border border-[var(--line)]">
-          <span className="text-[11px] font-[750] tracking-[1.4px] text-[var(--green)] uppercase block mb-2">
-            INSTITUTIONAL TENANT
-          </span>
-          <h3 className="text-[20px] font-[650] text-[var(--ink)] my-0 mb-1">
-            Pramana Academic Health System
-          </h3>
-          <p className="text-[13px] text-[var(--muted)] my-0">
-            Tenant ID: <span className="font-mono text-[var(--ink)]">00000000-0000-0000-0000-000000000001</span>
-          </p>
-          <div className="mt-4 pt-4 border-t border-[var(--line)] flex items-center justify-between">
-            <Badge variant="verified">Isolated Tenancy Active</Badge>
-            <span className="text-[12px] text-[var(--muted)]">Tier: Pilot Research</span>
-          </div>
-        </div>
-
-        <div className="p-6 rounded-[12px] bg-white border border-[var(--line)]">
-          <span className="text-[11px] font-[750] tracking-[1.4px] text-[var(--green)] uppercase block mb-2">
-            POSTGRESQL & STORAGE
-          </span>
-          <h3 className="text-[20px] font-[650] text-[var(--ink)] my-0 mb-1">
-            Supabase Infrastructure
-          </h3>
-          <p className="text-[13px] text-[var(--muted)] my-0">
-            {configStatus?.isConfigured
-              ? `Connected: ${configStatus.urlHost || "Configured Host"}`
-              : "Status: 31 Migrations Ready (Local Development)"}
-          </p>
-          <div className="mt-4 pt-4 border-t border-[var(--line)] flex items-center justify-between">
-            {configStatus?.isConfigured ? (
-              <Badge variant="verified">Live DB Active</Badge>
-            ) : (
-              <Badge variant="pending">Schema Ready</Badge>
-            )}
-            <span className="text-[12px] text-[var(--muted)]">26 Schema Tables</span>
-          </div>
-        </div>
-
-        <div className="p-6 rounded-[12px] bg-white border border-[var(--line)]">
-          <span className="text-[11px] font-[750] tracking-[1.4px] text-[var(--green)] uppercase block mb-2">
-            AUDIT LOG INTEGRITY
-          </span>
-          <h3 className="text-[20px] font-[650] text-[var(--ink)] my-0 mb-1">
-            Append-Only Audit Ledger
-          </h3>
-          <p className="text-[13px] text-[var(--muted)] my-0">
-            Table: <span className="font-mono text-[var(--ink)]">public.audit_logs</span>
-          </p>
-          <div className="mt-4 pt-4 border-t border-[var(--line)] flex items-center justify-between">
-            <Badge variant="default">Append-Only Active</Badge>
-            <span className="text-[12px] text-[var(--muted)]">RLS Enforced</span>
-          </div>
-        </div>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {[["Registered accounts",accounts.length],["Active accounts",accounts.filter(a=>a.isActive).length],["Inactive / awaiting review",accounts.filter(a=>!a.isActive).length]].map(([label,value])=><div key={label} className="p-5 rounded-xl bg-white border border-[var(--line)]"><p className="text-sm text-[var(--muted)]">{label}</p><div className="text-3xl font-semibold">{isLoadingAccounts?"—":value}</div></div>)}
       </div>
-
       {/* Authorized Institutional Clinicians & Pending Approvals */}
       <section className="bg-white rounded-[12px] border border-[var(--line)] p-6">
         <div className="flex items-center justify-between pb-4 mb-4 border-b border-[var(--line)]">
@@ -208,11 +155,11 @@ export default function AdminWorkspacePage() {
                     {acc.isActive ? (
                       <Badge variant="verified">Approved</Badge>
                     ) : (
-                      <Badge variant="pending">Pending Approval</Badge>
+                      <Badge variant="pending">Inactive / pending</Badge>
                     )}
                   </TableCell>
                   <TableCell className="text-right space-x-2">
-                    {!acc.isActive ? (
+                    {["platform_admin","institutional_admin"].includes(acc.requestedRole) ? <span className="text-xs text-[var(--muted)]">Protected account</span> : !acc.isActive ? (
                       <Button
                         size="sm"
                         variant="primary"
@@ -255,61 +202,6 @@ export default function AdminWorkspacePage() {
         )}
       </section>
 
-      {/* Database Schema & Migration Registry */}
-      <section className="bg-white rounded-[12px] border border-[var(--line)] p-6">
-        <div className="flex items-center justify-between pb-4 mb-4 border-b border-[var(--line)]">
-          <div>
-            <h3 className="text-[18px] font-[650] text-[var(--ink)] my-0">Database Schema & RLS Architecture</h3>
-            <p className="text-[13px] text-[var(--muted)] my-0">
-              Version-controlled SQL migrations structured with strict Row Level Security.
-            </p>
-          </div>
-          <Badge variant="verified">26 Live Tables Active</Badge>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-[13px]">
-          <div className="p-4 rounded-[8px] bg-[#faf9f5] border border-[var(--line)]">
-            <span className="font-mono text-[11px] text-[var(--green)] block font-bold mb-1">001_institutional_management</span>
-            <p className="font-semibold text-[var(--ink)] my-0">Tenancy & RBAC</p>
-            <p className="text-[12px] text-[var(--muted)] my-1">8 tables (organizations, members, roles, approvals)</p>
-          </div>
-          <div className="p-4 rounded-[8px] bg-[#faf9f5] border border-[var(--line)]">
-            <span className="font-mono text-[11px] text-[var(--green)] block font-bold mb-1">002_patient_and_encounters</span>
-            <p className="font-semibold text-[var(--ink)] my-0">Patient & Encounters</p>
-            <p className="text-[12px] text-[var(--muted)] my-1">3 tables (patients, patient_access, encounters)</p>
-          </div>
-          <div className="p-4 rounded-[8px] bg-[#faf9f5] border border-[var(--line)]">
-            <span className="font-mono text-[11px] text-[var(--green)] block font-bold mb-1">003_clinical_intelligence</span>
-            <p className="font-semibold text-[var(--ink)] my-0">Documents & Entities</p>
-            <p className="text-[12px] text-[var(--muted)] my-1">7 tables (documents, versions, entities, meds, labs)</p>
-          </div>
-          <div className="p-4 rounded-[8px] bg-[#faf9f5] border border-[var(--line)]">
-            <span className="font-mono text-[11px] text-[var(--green)] block font-bold mb-1">004_safety_provenance_graph</span>
-            <p className="font-semibold text-[var(--ink)] my-0">Safety Provenance Graph</p>
-            <p className="text-[12px] text-[var(--muted)] my-1">5 tables (rules, versions, alerts, nodes, edges)</p>
-          </div>
-          <div className="p-4 rounded-[8px] bg-[#faf9f5] border border-[var(--line)]">
-            <span className="font-mono text-[11px] text-[var(--green)] block font-bold mb-1">005_professional_verification</span>
-            <p className="font-semibold text-[var(--ink)] my-0">Attestation & Reviews</p>
-            <p className="text-[12px] text-[var(--muted)] my-1">5 tables (reviews, handoffs, discharge, attestations)</p>
-          </div>
-          <div className="p-4 rounded-[8px] bg-[#faf9f5] border border-[var(--line)]">
-            <span className="font-mono text-[11px] text-[var(--green)] block font-bold mb-1">006_platform_governance</span>
-            <p className="font-semibold text-[var(--ink)] my-0">Governance & Inquiries</p>
-            <p className="text-[12px] text-[var(--muted)] my-1">3 tables (audit_logs, contact_inquiries, consent)</p>
-          </div>
-          <div className="p-4 rounded-[8px] bg-[#faf9f5] border border-[var(--line)]">
-            <span className="font-mono text-[11px] text-[var(--green)] block font-bold mb-1">007_storage_buckets</span>
-            <p className="font-semibold text-[var(--ink)] my-0">Private Object Storage</p>
-            <p className="text-[12px] text-[var(--muted)] my-1">3 private buckets (25MB limit, strict MIME whitelist)</p>
-          </div>
-          <div className="p-4 rounded-[8px] bg-[#faf9f5] border border-[var(--line)]">
-            <span className="font-mono text-[11px] text-[var(--green)] block font-bold mb-1">008_row_level_security</span>
-            <p className="font-semibold text-[var(--ink)] my-0">Row Level Security (RLS)</p>
-            <p className="text-[12px] text-[var(--muted)] my-1">Multi-tenant isolation & least-privilege matrix</p>
-          </div>
-        </div>
-      </section>
     </WorkspaceLayout>
   );
 }
