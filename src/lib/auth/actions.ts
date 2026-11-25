@@ -342,29 +342,68 @@ export async function requestPasswordResetAction(email: string): Promise<AuthAct
 /**
  * 5. Update Password
  */
-export async function updatePasswordAction(newPassword: string): Promise<AuthActionResult> {
+export async function updatePasswordAction(
+  newPassword: string,
+  accessToken?: string
+): Promise<AuthActionResult> {
   const passwordCheck = await validatePasswordComplexity(newPassword);
   if (!passwordCheck.valid) {
     return { success: false, error: passwordCheck.reason };
   }
 
   const supabase = await createSupabaseServerClient();
-  if (!supabase) {
-    return { success: false, error: "Authentication service currently unavailable." };
+  let user: { id: string; email?: string } | null = null;
+
+  if (supabase) {
+    const { data } = await supabase.auth.getUser();
+    if (data?.user) {
+      user = data.user;
+    }
   }
 
-  const { data, error } = await supabase.auth.updateUser({
-    password: newPassword,
-  });
+  // If no cookie-based session, try resolving via accessToken if provided from URL hash
+  if (!user && accessToken) {
+    const { createClient } = await import("@supabase/supabase-js");
+    const anon = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!
+    );
+    const { data: tokenUser } = await anon.auth.getUser(accessToken);
+    if (tokenUser?.user) {
+      user = tokenUser.user;
+    }
+  }
 
-  if (error) {
-    return { success: false, error: error.message };
+  if (!user) {
+    return {
+      success: false,
+      error: "Auth session missing. Please click the password reset link again or request a new one.",
+    };
+  }
+
+  // Update password using admin client or session client
+  const admin = getSupabaseAdminClient();
+  if (admin) {
+    const { error: adminUpdateErr } = await admin.auth.admin.updateUserById(
+      user.id,
+      { password: newPassword, email_confirm: true }
+    );
+    if (adminUpdateErr) {
+      return { success: false, error: adminUpdateErr.message };
+    }
+  } else if (supabase) {
+    const { error: sessionUpdateErr } = await supabase.auth.updateUser({
+      password: newPassword,
+    });
+    if (sessionUpdateErr) {
+      return { success: false, error: sessionUpdateErr.message };
+    }
   }
 
   await logAuditEvent({
     action: "auth.password_reset_completed",
-    userId: data.user?.id,
-    details: { email: data.user?.email },
+    userId: user.id,
+    details: { email: user.email },
   });
 
   return {

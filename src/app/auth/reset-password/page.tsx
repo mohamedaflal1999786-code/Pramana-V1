@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { Lock, CheckCircle2, AlertCircle, ShieldCheck } from "lucide-react";
 import { updatePasswordAction } from "@/lib/auth/actions";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 export default function ResetPasswordPage() {
   const [password, setPassword] = React.useState("");
@@ -14,6 +15,42 @@ export default function ResetPasswordPage() {
   const [isLoading, setIsLoading] = React.useState(false);
   const [isSuccess, setIsSuccess] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [tokens, setTokens] = React.useState<{ access_token: string; refresh_token?: string } | null>(null);
+
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    // Extract tokens from URL hash fragment (sent by Supabase recovery redirect)
+    const hash = window.location.hash;
+    if (hash && hash.includes("access_token")) {
+      const hashParams = new URLSearchParams(hash.replace(/^#/, ""));
+      const access = hashParams.get("access_token");
+      const refresh = hashParams.get("refresh_token") || undefined;
+      if (access) {
+        setTokens({ access_token: access, refresh_token: refresh });
+        const supabase = getSupabaseBrowserClient();
+        if (supabase && refresh) {
+          supabase.auth.setSession({ access_token: access, refresh_token: refresh }).catch(console.error);
+        }
+      }
+    } else {
+      const searchParams = new URLSearchParams(window.location.search);
+      const code = searchParams.get("code");
+      if (code) {
+        const supabase = getSupabaseBrowserClient();
+        if (supabase) {
+          supabase.auth.exchangeCodeForSession(code).then(({ data }) => {
+            if (data?.session) {
+              setTokens({
+                access_token: data.session.access_token,
+                refresh_token: data.session.refresh_token,
+              });
+            }
+          }).catch(console.error);
+        }
+      }
+    }
+  }, []);
 
   const passwordChecks = {
     length: password.length >= 8,
@@ -40,13 +77,46 @@ export default function ResetPasswordPage() {
     setIsLoading(true);
 
     try {
-      const result = await updatePasswordAction(password);
-      if (!result.success) {
-        setError(result.error || "Failed to update password.");
-        setIsLoading(false);
+      // 1. Resolve access token from state or directly from window hash
+      let accessToken = tokens?.access_token;
+      let refreshToken = tokens?.refresh_token;
+
+      if (!accessToken && typeof window !== "undefined") {
+        const hash = window.location.hash;
+        if (hash && hash.includes("access_token")) {
+          const hashParams = new URLSearchParams(hash.replace(/^#/, ""));
+          accessToken = hashParams.get("access_token") || undefined;
+          refreshToken = hashParams.get("refresh_token") || undefined;
+        }
+      }
+
+      // 2. Set browser session in cookies if possible
+      const supabase = getSupabaseBrowserClient();
+      if (supabase && accessToken && refreshToken) {
+        try {
+          await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+        } catch {
+          // Continue to server action
+        }
+      }
+
+      // 3. Update password via server action with verified accessToken
+      const result = await updatePasswordAction(password, accessToken);
+      if (result.success) {
+        setIsSuccess(true);
         return;
       }
-      setIsSuccess(true);
+
+      // 4. Fallback to client-side direct update if server action couldn't find session
+      if (supabase) {
+        const { error: clientError } = await supabase.auth.updateUser({ password });
+        if (!clientError) {
+          setIsSuccess(true);
+          return;
+        }
+      }
+
+      setError(result.error || "Failed to update password.");
     } catch (err: any) {
       setError(err?.message || "An unexpected error occurred.");
     } finally {
