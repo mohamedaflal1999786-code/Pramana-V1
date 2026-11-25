@@ -80,7 +80,7 @@ export async function validatePasswordComplexity(password: string): Promise<{ va
  */
 export async function signInAction(
   formData: FormData,
-  returnUrl?: string
+  _returnUrl?: string
 ): Promise<AuthActionResult> {
   const email = (formData.get("email") as string)?.trim().toLowerCase();
   const password = formData.get("password") as string;
@@ -130,41 +130,23 @@ export async function signInAction(
 
   // Determine authorized workspace destination
   const admin = getSupabaseAdminClient();
-  let targetUrl = returnUrl && returnUrl.startsWith("/") ? returnUrl : "/workspaces/doctor";
-
-  if (admin) {
-    const { data: member } = await admin
-      .from("organization_members")
-      .select("role_id, is_active")
-      .eq("user_id", user.id)
-      .maybeSingle();
-
-    if (member) {
-      if (!member.is_active) {
-        return {
-          success: true,
-          redirectUrl: "/auth/pending-approval",
-        };
-      }
-
-      switch (member.role_id) {
-        case "institutional_admin":
-        case "platform_admin":
-          targetUrl = "/workspaces/admin";
-          break;
-        case "pharmacist":
-          targetUrl = "/workspaces/pharmacist";
-          break;
-        case "patient":
-          targetUrl = "/workspaces/patient";
-          break;
-        case "doctor":
-        default:
-          targetUrl = "/workspaces/doctor";
-          break;
-      }
-    }
+  if (!admin) {
+    await supabase.auth.signOut();
+    return { success: false, error: "Workspace authorization unavailable." };
   }
+  const { data: member, error: membershipError } = await admin
+    .from("organization_members").select("role_id, is_active").eq("user_id", user.id).maybeSingle();
+  const destinations: Record<string, string> = {
+    institutional_admin: "admin", platform_admin: "admin", doctor: "doctor", pharmacist: "pharmacist", patient: "patient"
+  };
+  const role = member && destinations[member.role_id];
+  const expected = formData.get("portal");
+  if (membershipError || !member || !role || (expected && expected !== role)) {
+    await supabase.auth.signOut();
+    return { success: false, error: "No authorized membership for this portal." };
+  }
+  if (!member.is_active) return { success: true, redirectUrl: "/auth/pending-approval" };
+  const targetUrl = "/workspaces/" + role;
 
   return {
     success: true,
@@ -186,6 +168,7 @@ export async function signUpAction(formData: FormData): Promise<AuthActionResult
     return { success: false, error: "Please fill out all required fields." };
   }
 
+  if (!["doctor", "pharmacist", "patient"].includes(requestedRole)) return { success: false, error: "Invalid registration role." };
   const passwordCheck = await validatePasswordComplexity(password);
   if (!passwordCheck.valid) {
     return { success: false, error: passwordCheck.reason };
@@ -318,7 +301,7 @@ export async function requestPasswordResetAction(email: string): Promise<AuthAct
     return { success: false, error: "Authentication service currently unavailable." };
   }
 
-  const origin = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+  const origin = process.env.NEXT_PUBLIC_SITE_URL || (process.env.NODE_ENV === "production" ? "https://pramana-v1.vercel.app" : "http://localhost:3000");
   const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
     redirectTo: `${origin}/auth/reset-password`,
   });
