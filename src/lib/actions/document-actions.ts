@@ -32,7 +32,7 @@ async function authorizedDocumentOrg() {
   const admin = getSupabaseAdminClient();
   if (!supabase || !admin) return null;
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
+  if (!user?.email_confirmed_at) return null;
   const { data: member, error } = await admin.from("organization_members").select("organization_id,role_id,is_active").eq("user_id",user.id).maybeSingle();
   if (error || !member?.is_active || !["doctor","pharmacist","institutional_admin","platform_admin"].includes(member.role_id)) return null;
   return member.organization_id;
@@ -78,7 +78,7 @@ export async function uploadClinicalDocumentAction(
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) {
+  if (!user?.email_confirmed_at) {
     return { success: false, error: "Authentication required to upload clinical documents." };
   }
 
@@ -91,10 +91,10 @@ export async function uploadClinicalDocumentAction(
     return { success: false, error: "No file was attached to the ingestion request." };
   }
 
-  const arrayBuffer = await file.arrayBuffer();
-  const buffer = Buffer.from(arrayBuffer);
   const defaultOrgId = await authorizedDocumentOrg();
   if (!defaultOrgId) return { success: false, error: "Authorized clinical membership required." };
+  const arrayBuffer = await file.arrayBuffer();
+  const buffer = Buffer.from(arrayBuffer);
 
   // Server-side validation
   const validation = validateClinicalDocument(
@@ -174,7 +174,7 @@ export async function uploadClinicalDocumentAction(
   const versionId = crypto.randomUUID();
 
   // Create document_versions record
-  await admin.from("document_versions").insert({
+  const {error: versionError} = await admin.from("document_versions").insert({
     id: versionId,
     organization_id: defaultOrgId,
     document_id: docId,
@@ -184,10 +184,11 @@ export async function uploadClinicalDocumentAction(
     uploaded_by: user.id,
   });
 
+  if (versionError) return {success:false,documentId:docId,error:"Document version could not be recorded. Contact an administrator."};
   const jobId = crypto.randomUUID();
 
   // Create extraction_jobs record
-  await admin.from("extraction_jobs").insert({
+  const {error: jobError} = await admin.from("extraction_jobs").insert({
     id: jobId,
     organization_id: defaultOrgId,
     document_version_id: versionId,
@@ -196,6 +197,7 @@ export async function uploadClinicalDocumentAction(
     started_at: new Date().toISOString(),
   });
 
+  if (jobError) return {success:false,documentId:docId,error:"Extraction job could not be created."};
   // Run Extraction Engine
   const extraction = await executeDocumentExtraction(
     buffer,
@@ -222,7 +224,8 @@ export async function uploadClinicalDocumentAction(
       is_verified: false,
     }));
 
-    await admin.from("clinical_entities").insert(entityRows);
+    const {error: entityError} = await admin.from("clinical_entities").insert(entityRows);
+    if (entityError) { await admin.from("extraction_jobs").update({status:"failed",error_message:"Entity persistence failed",completed_at:new Date().toISOString()}).eq("id",jobId); return {success:false,documentId:docId,error:"Extracted evidence could not be saved."}; }
   }
 
   // Update extraction_jobs to completed
@@ -265,7 +268,7 @@ export async function uploadClinicalDocumentAction(
     sha256Hash: validation.sha256Hash,
     title: documentTitle,
     entityCount: extraction.entities.length,
-    message: `Document ingested successfully (${extraction.entities.length} clinical tokens grounded).`,
+    message: extraction.success ? `Document ingested successfully (${extraction.entities.length} clinical tokens grounded).` : "Extraction failed.",
   };
 }
 
@@ -316,7 +319,7 @@ export async function listClinicalDocumentsAction(
     quarantineStatus: doc.quarantine_status,
     createdAt: doc.created_at,
     entityCount: 0,
-    patientMrn: doc.patients?.mrn || "SYNTH-PAT-001",
+    patientMrn: doc.patients?.mrn || undefined,
   }));
 }
 
@@ -342,7 +345,7 @@ export async function getDocumentDetailsAction(documentId: string) {
   const { data: versions } = await admin
     .from("document_versions")
     .select("*")
-    .eq("document_id", documentId)
+    .eq("document_id", documentId).eq("organization_id",org)
     .order("version_number", { ascending: false });
 
   // Fetch extracted clinical entities
@@ -352,7 +355,7 @@ export async function getDocumentDetailsAction(documentId: string) {
     const { data: entityData } = await admin
       .from("clinical_entities")
       .select("*")
-      .eq("document_version_id", versionId)
+      .eq("document_version_id", versionId).eq("organization_id",org)
       .order("created_at", { ascending: true });
     entities = entityData || [];
   }
@@ -383,7 +386,7 @@ export async function reviewEntityAction(
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) return { success: false, error: "Authentication required." };
+  if (!user?.email_confirmed_at) return { success: false, error: "Authentication required." };
 
   const admin = getSupabaseAdminClient();
   if (!admin) return { success: false, error: "Admin client unavailable." };
@@ -438,7 +441,7 @@ export async function deleteClinicalDocumentAction(
   if (!doc) return {success:false,error:"Document not found."};
   const supabase = await createSupabaseServerClient();
   const user = (await supabase?.auth.getUser())?.data.user;
-  if (!user) return {success:false,error:"Authentication required."};
+  if (!user?.email_confirmed_at) return {success:false,error:"Authentication required."};
   const {data:member}=await admin.from("organization_members").select("role_id,is_active").eq("user_id",user.id).eq("organization_id",org).maybeSingle();
   if (!member?.is_active || !["institutional_admin","platform_admin"].includes(member.role_id)) return {success:false,error:"Administrator required."};
 
