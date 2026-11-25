@@ -1,13 +1,12 @@
 /**
- * Pramana-V1 Native PDF Parser
+ * Pramana-V1 Native Server-Side PDF Parser
  * Team: Unknown GenZ
  *
- * Extracts text page-by-page using pdf-parse, preserves page numbering,
- * character offsets, extracts metadata, and identifies scanned pages requiring OCR.
+ * Extracts text page-by-page using unpdf (pure JS, serverless-safe, zero DOM/canvas dependencies).
+ * Preserves page numbering, character offsets, extracts metadata, and identifies scanned pages requiring OCR.
  */
 
-// eslint-disable-next-line
-const pdf = require("pdf-parse");
+import { extractText, getMeta } from "unpdf";
 import type { ParsedPage } from "../types";
 
 export interface PdfParseResult {
@@ -23,54 +22,59 @@ export interface PdfParseResult {
   hasScannedPages: boolean;
 }
 
-export async function parsePdfDocument(buffer: Buffer): Promise<PdfParseResult> {
+export async function parsePdfDocument(buffer: Buffer | Uint8Array): Promise<PdfParseResult> {
+  // unpdf strictly requires a standard Uint8Array (it explicitly rejects Buffer instances)
+  const data = Buffer.isBuffer(buffer)
+    ? new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength)
+    : buffer instanceof Uint8Array
+    ? buffer
+    : new Uint8Array(buffer);
+
+  // 1. Extract text page-by-page cleanly without DOMMatrix / canvas dependencies
+  const { totalPages, text: pageTexts } = await extractText(data, { mergePages: false });
+
+  // 2. Extract document metadata safely
+  let metaInfo: Record<string, any> = {};
+  try {
+    const meta = await getMeta(data);
+    metaInfo = meta?.info || {};
+  } catch {
+    // Non-fatal fallback for PDFs without standard metadata dictionary
+  }
+
   const pages: ParsedPage[] = [];
-  let pageIndex = 1;
+  let fullText = "";
+  let hasScannedPages = false;
 
-  // Custom page renderer to capture page-by-page text and detect image-only pages
-  const options = {
-    pagerender: function (pageData: any) {
-      return pageData.getTextContent().then(function (textContent: any) {
-        let lastY: number | null = null;
-        let text = "";
-        for (const item of textContent.items) {
-          if (lastY === item.transform[5] || lastY === null) {
-            text += item.str;
-          } else {
-            text += "\n" + item.str;
-          }
-          lastY = item.transform[5];
-        }
+  const rawPages = Array.isArray(pageTexts) ? pageTexts : [pageTexts || ""];
 
-        const trimmed = text.trim();
-        const charCount = trimmed.length;
-        const isScannedOrImage = charCount < 25; // Page has almost no native text
+  rawPages.forEach((rawText, idx) => {
+    const trimmed = (rawText || "").trim();
+    const charCount = trimmed.length;
+    const isScannedOrImage = charCount < 25; // Scanned or image-only page
+    if (isScannedOrImage) {
+      hasScannedPages = true;
+    }
 
-        pages.push({
-          pageNumber: pageIndex++,
-          text: trimmed,
-          charCount,
-          isScannedOrImage,
-        });
+    pages.push({
+      pageNumber: idx + 1,
+      text: trimmed,
+      charCount,
+      isScannedOrImage,
+    });
 
-        return text;
-      });
-    },
-  };
-
-  const parsed = await pdf(buffer, options);
-
-  const hasScannedPages = pages.some((p) => p.isScannedOrImage);
+    fullText += (fullText ? "\n\n" : "") + trimmed;
+  });
 
   return {
-    totalPages: parsed.numpages || pages.length,
+    totalPages: totalPages || pages.length,
     pages,
-    fullText: parsed.text || "",
+    fullText: fullText.trim(),
     metadata: {
-      title: parsed.info?.Title,
-      author: parsed.info?.Author,
-      creator: parsed.info?.Creator,
-      pageCount: parsed.numpages || pages.length,
+      title: metaInfo.Title || metaInfo.title || undefined,
+      author: metaInfo.Author || metaInfo.author || undefined,
+      creator: metaInfo.Creator || metaInfo.creator || undefined,
+      pageCount: totalPages || pages.length,
     },
     hasScannedPages,
   };

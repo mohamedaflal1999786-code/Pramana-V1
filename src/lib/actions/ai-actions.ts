@@ -25,6 +25,7 @@ import { evaluateDeterministicSafetyRules } from "@/lib/ai/safety-rules";
 import { analyzeMissingEvidence } from "@/lib/ai/missing-evidence";
 import { evaluateClinicalHandoff } from "@/lib/ai/handoff-engine";
 import { generateMultilingualDischargeDraft } from "@/lib/ai/multilingual-discharge";
+import { parsePdfDocument } from "@/lib/extraction/parsers/pdf-parser";
 import type {
   AiAnalysisJobResult,
   SafetyFinding,
@@ -92,9 +93,21 @@ export async function runClinicalDocumentAiAnalysisAction(
 
   let documentText = `CLINICAL PROGRESS NOTE: ${doc.title}`;
   if (!downloadErr && fileData) {
-    const text = await fileData.text();
-    if (text && text.trim().length > 10) {
-      documentText = text;
+    if (doc.storage_path.toLowerCase().endsWith(".pdf")) {
+      try {
+        const arrayBuf = await fileData.arrayBuffer();
+        const pdfParsed = await parsePdfDocument(new Uint8Array(arrayBuf));
+        if (pdfParsed.fullText && pdfParsed.fullText.trim().length > 10) {
+          documentText = pdfParsed.fullText;
+        }
+      } catch (pdfErr: any) {
+        console.warn("[ai-actions] PDF parse fallback note:", pdfErr?.message);
+      }
+    } else {
+      const text = await fileData.text();
+      if (text && text.trim().length > 10) {
+        documentText = text;
+      }
     }
   }
 

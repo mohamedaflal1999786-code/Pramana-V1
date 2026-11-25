@@ -2,6 +2,9 @@
   "name": "pramana-v1",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": "20.x"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -15,18 +18,19 @@
     "@google/generative-ai": "^0.24.1",
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.46.1",
-    "@types/pdf-parse": "^1.1.5",
     "@types/pg": "^8.11.10",
     "clsx": "^2.1.1",
     "lucide-react": "^0.462.0",
     "next": "14.2.18",
-    "pdf-parse": "^2.4.5",
+    "pdf-lib": "^1.17.1",
+    "pdf2json": "^4.0.3",
     "pg": "^8.13.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "server-only": "^0.0.1",
     "tailwind-merge": "^2.5.5",
-    "tesseract.js": "^7.0.0"
+    "tesseract.js": "^7.0.0",
+    "unpdf": "^1.7.0"
   },
   "devDependencies": {
     "@types/node": "^20.17.6",
