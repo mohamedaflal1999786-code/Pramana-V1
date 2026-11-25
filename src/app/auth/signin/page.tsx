@@ -164,7 +164,7 @@ function PortalContent() {
       }
     >
       <React.Suspense fallback={<div className="p-8 text-center text-[13px] text-[var(--muted)]">Loading credentials interface...</div>}>
-        {name ? <SignInForm portal={portal} /> : <div className="grid gap-3">{Object.entries(names).map(([key,label]) => <Link key={key} href={"/login/"+key} className="block rounded-lg border p-4 font-semibold text-[var(--green)]">{label} Portal →</Link>)}<Link href="/login/public" className="block rounded-lg border p-4">Public Portal →</Link></div>}
+        {name ? <SignInForm portal={portal} /> : <div className="grid gap-3">{Object.entries(names).map(([key,label]) => <Link key={key} href={"/login/"+key} className="block rounded-lg border p-4 font-semibold text-[var(--green)]">{label} Portal →</Link>)}</div>}
       </React.Suspense>
     </AuthLayout>
   );
