@@ -53,6 +53,11 @@ jobs:
       - name: Patient access tests
         run: npm run test:access
 
+      - name: Apply and exercise both migrations on PostgreSQL 17 fixture
+        env:
+          PRAMANA_TEST_POSTGRES: '1'
+        run: npm run test:access
+
       - name: TypeScript validation
         run: npx tsc --noEmit
 
