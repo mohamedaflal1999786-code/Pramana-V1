@@ -1,9 +1,18 @@
+import pg from "pg";
 import { PGlite } from "@electric-sql/pglite";
 import assert from "node:assert/strict";
 import {randomUUID} from "node:crypto";
 import {readFileSync} from "node:fs";
 
-const db = new PGlite();
+const native = process.env.PRAMANA_TEST_POSTGRES === "1";
+let db;
+if (native) {
+  const client = new pg.Client({host:"127.0.0.1",port:5432,user:"ci_user",password:"ci_test_only",database:"pramana_test"});
+  await client.connect();
+  db = {query:(sql,args)=>client.query(sql,args),exec:(sql)=>client.query(sql),close:()=>client.end()};
+  const check = await db.query("select current_database() as name, current_user as actor, current_setting('server_version_num')::int as version");
+  if(check.rows[0].name !== "pramana_test" || check.rows[0].actor !== "ci_user" || Math.floor(check.rows[0].version/10000)!==17) { await db.close(); throw new Error("Expected disposable PostgreSQL 17 CI database"); }
+} else db = new PGlite();
 const [org,otherOrg,doctor,pharmacist,admin,patient,outsider,alert] = Array.from({length:8},()=>randomUUID());
 const rows=async(sql,args)=>(await db.query(sql,args)).rows;
 async function actor(id) { await db.exec("reset role");await db.query("select set_config('test.actor',$1,false)",[id]);await db.exec("set role authenticated"); }
@@ -62,5 +71,5 @@ try {
   await assert.rejects(rows(upload,[...input.slice(0,-1),false]));
   const [v2]=await rows(upload,[org,pid,doctor,doc,path+"2","b".repeat(64),false]);assert.equal(v2.version_no,2);
   await actor(outsider);assert.equal((await rows("select * from patient_care_access")).length,0);
-  console.log("Patient registration, consent, isolation, identity link, review, approval and audit checks passed in isolated PostgreSQL.");
+  console.log("Patient access and clinical persistence checks passed on "+(native?"native PostgreSQL 17":"PGlite fixture"));
 } finally { await db.close(); }
