@@ -72,7 +72,7 @@ export default function DoctorWorkspacePage() {
         <div className="p-5 rounded-[10px] bg-white border border-[var(--line)]">
           <span className="text-[12px] font-[650] text-[var(--muted)] block mb-1">CLINICAL DOCUMENTS</span>
           <div className="text-[28px] font-[750] text-[var(--ink)]">
-            {isLoading ? <RefreshCw className="w-5 h-5 animate-spin" /> : activeRecords || 1}
+            {isLoading ? <RefreshCw className="w-5 h-5 animate-spin" /> : activeRecords}
           </div>
           <span className="text-[11px] text-[var(--muted)]">Active encounters in provenance DAG</span>
         </div>
@@ -96,7 +96,7 @@ export default function DoctorWorkspacePage() {
         <div className="p-5 rounded-[10px] bg-white border border-[var(--line)]">
           <span className="text-[12px] font-[650] text-[var(--muted)] block mb-1">EXTRACTION FIDELITY</span>
           <div className="text-[28px] font-[750] text-[var(--ink)]">
-            {isLoading ? <RefreshCw className="w-5 h-5 animate-spin" /> : "100%"}
+            {isLoading ? <RefreshCw className="w-5 h-5 animate-spin" /> : "Not measured"}
           </div>
           <span className="text-[11px] text-[var(--muted)]">Verbatim grounded evidence spans</span>
         </div>
@@ -115,32 +115,6 @@ export default function DoctorWorkspacePage() {
         </div>
       )}
 
-      {/* Flagship Demonstration Banner */}
-      <div className="p-6 rounded-[12px] bg-[#f5fbf7] border border-[#c3d8c8] flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div>
-          <span className="text-[11px] font-[700] text-[#145a45] uppercase tracking-wider block mb-1">
-            Active Synthetic Patient Encounter: PAT-SYNTH-2026-088 (Jane Doe)
-          </span>
-          <h3 className="text-[19px] font-[700] text-[var(--ink)] my-0">
-            Cardiorenal Syndrome with Severe Warfarin-Aspirin Bleeding Risk & Lisinopril Dose Excess
-          </h3>
-          <p className="text-[13px] text-[#2c4033] my-1 leading-relaxed">
-            Patient history includes chronic atrial fibrillation and Stage 4 CKD (eGFR 22). The deterministic safety engine flagged a Critical Bleeding interaction and FDA ceiling violation backed by verbatim source quotes.
-          </p>
-        </div>
-        <div className="flex gap-2 shrink-0">
-          <Link href="/workspaces/graph">
-            <Button variant="primary" size="sm" leftIcon={<Network className="w-4 h-4" />}>
-              Explore Safety Provenance Graph →
-            </Button>
-          </Link>
-          <Link href="/workspaces/review">
-            <Button variant="outline" size="sm" leftIcon={<CheckCircle2 className="w-4 h-4" />}>
-              Review & Attest
-            </Button>
-          </Link>
-        </div>
-      </div>
-    </WorkspaceLayout>
+          </WorkspaceLayout>
   );
 }
