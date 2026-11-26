@@ -115,16 +115,16 @@ export default function MedicationSafetyPage() {
                       <span>{name}</span>
                     </TableCell>
                     <TableCell className="text-[var(--muted)]">
-                      {med.metadata?.dosage || "Standard Dose"}
+                      {med.metadata?.dosage || "Not documented"}
                     </TableCell>
                     <TableCell className="font-mono text-[11px] text-[var(--muted)] max-w-xs truncate">
-                      {med.metadata?.dosage ? `"${med.metadata.dosage}"` : "Extracted from admission chart"}
+                      {med.metadata?.dosage ? `"${med.metadata.dosage}"` : "Source evidence unavailable"}
                     </TableCell>
                     <TableCell>
                       {hasFinding ? (
                         <Badge variant="danger">Safety Flag Raised</Badge>
                       ) : (
-                        <Badge variant="verified">Reconciled / Cleared</Badge>
+                        <Badge variant="unverified">Requires review</Badge>
                       )}
                     </TableCell>
                     <TableCell className="text-right">
@@ -161,7 +161,7 @@ export default function MedicationSafetyPage() {
                 <div>
                   <span className="font-[650] text-[var(--ink)]">{alg.label}</span>
                   <span className="text-[var(--muted)] block text-[11px]">
-                    {alg.metadata?.dosage || "Severe hypersensitivity documented in clinical chart."}
+                    {alg.metadata?.dosage || "Details not documented."}
                   </span>
                 </div>
                 <Link href="/workspaces/graph">
