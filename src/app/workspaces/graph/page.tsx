@@ -58,12 +58,12 @@ export default function SafetyProvenanceGraphPage() {
     try {
       const data = await getPatientSafetyProvenanceGraphAction();
       setGraphData(data);
-      if (data.nodes.length > 0 && !selectedNode) {
+      if (data.nodes.length > 0) {
         // Default select first finding or entity
         const defaultNode =
           data.nodes.find((n) => n.nodeType === "clinical_finding") ||
           data.nodes[0];
-        setSelectedNode(defaultNode);
+        setSelectedNode(previous => data.nodes.find(n => n.id === previous?.id) || defaultNode);
       }
     } catch (err: any) {
       console.error("Failed to load SPG:", err);
@@ -71,7 +71,7 @@ export default function SafetyProvenanceGraphPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [selectedNode]);
+  }, []);
 
   React.useEffect(() => {
     fetchGraph();
