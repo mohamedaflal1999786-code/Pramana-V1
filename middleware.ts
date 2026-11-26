@@ -41,16 +41,23 @@ function isSafeInternalUrl(url: string | null): boolean {
 }
 
 export async function middleware(request: NextRequest) {
-  const { pathname, searchParams } = request.nextUrl;
+  const { pathname } = request.nextUrl;
 
   // 1. Session token refresh via Supabase SSR
-  const { supabaseResponse, user, supabase } = await updateSession(request);
+  const { supabaseResponse, user } = await updateSession(request);
 
   // Apply HTTP security headers
   for (const [header, value] of Object.entries(SECURITY_HEADERS)) {
     supabaseResponse.headers.set(header, value);
   }
 
+  const redirectWithSession = (url: URL) => {
+    const response = NextResponse.redirect(url);
+    for (const cookie of supabaseResponse.cookies.getAll()) response.cookies.set(cookie);
+    for (const [header,value] of Object.entries(SECURITY_HEADERS)) response.headers.set(header,value);
+    response.headers.set("Cache-Control","no-store");
+    return response;
+  };
   // 2. Check if route is under /workspaces
   if (pathname.startsWith(PROTECTED_PREFIX)) {
     if (!user) {
@@ -58,56 +65,12 @@ export async function middleware(request: NextRequest) {
       const returnUrl = isSafeInternalUrl(pathname) ? pathname : "/workspaces/doctor";
       const redirectUrl = new URL("/auth/signin", request.url);
       redirectUrl.searchParams.set("returnUrl", returnUrl);
-      return NextResponse.redirect(redirectUrl);
+      return redirectWithSession(redirectUrl);
     }
 
-    // Role-specific workspace path protection
-    const roleMetadata = (user.user_metadata?.role as string) || (user.app_metadata?.role as string);
-
-    if (pathname.startsWith("/workspaces/admin")) {
-      const allowedRoles = ["institutional_admin", "platform_admin", "admin"];
-      if (roleMetadata && !allowedRoles.includes(roleMetadata)) {
-        const deniedUrl = new URL("/auth/access-denied", request.url);
-        deniedUrl.searchParams.set("reason", "admin_privilege_required");
-        return NextResponse.redirect(deniedUrl);
-      }
-    }
-
-    if (pathname.startsWith("/workspaces/doctor")) {
-      const allowedRoles = ["doctor", "safety_officer", "platform_admin", "institutional_admin"];
-      if (roleMetadata && !allowedRoles.includes(roleMetadata)) {
-        const deniedUrl = new URL("/auth/access-denied", request.url);
-        deniedUrl.searchParams.set("reason", "clinical_privilege_required");
-        return NextResponse.redirect(deniedUrl);
-      }
-    }
-
-    if (pathname.startsWith("/workspaces/pharmacist")) {
-      const allowedRoles = ["pharmacist", "safety_officer", "platform_admin", "institutional_admin"];
-      if (roleMetadata && !allowedRoles.includes(roleMetadata)) {
-        const deniedUrl = new URL("/auth/access-denied", request.url);
-        deniedUrl.searchParams.set("reason", "pharmacy_privilege_required");
-        return NextResponse.redirect(deniedUrl);
-      }
-    }
-
-    if (pathname.startsWith("/workspaces/patient")) {
-      const allowedRoles = ["patient", "platform_admin"];
-      if (roleMetadata && !allowedRoles.includes(roleMetadata)) {
-        const deniedUrl = new URL("/auth/access-denied", request.url);
-        deniedUrl.searchParams.set("reason", "patient_privilege_required");
-        return NextResponse.redirect(deniedUrl);
-      }
-    }
+    // Role and active membership checks are enforced by server workspace layouts.
   }
-
-  // 3. If authenticated user visits signin or signup, redirect to workspace
-  if (user && (pathname === "/auth/signin" || pathname === "/auth/signup")) {
-    const returnUrlParam = searchParams.get("returnUrl");
-    const targetUrl = isSafeInternalUrl(returnUrlParam) ? returnUrlParam! : "/workspaces/doctor";
-    return NextResponse.redirect(new URL(targetUrl, request.url));
-  }
-
+  // Do not force authenticated users into the doctor portal.
   return supabaseResponse;
 }
 
