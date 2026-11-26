@@ -35,10 +35,22 @@ import type {
   HandoffOmissionItem,
 } from "@/lib/ai/types";
 
+async function requireClinicalMember() {
+ const client = await createSupabaseServerClient();
+ const admin = getSupabaseAdminClient();
+ if (!client || !admin) throw new Error("Service unavailable.");
+ const {data:{user},error} = await client.auth.getUser();
+ if(error || !user?.email_confirmed_at) throw new Error("Authentication required.");
+ const {data:member,error:memberError} = await admin.from("organization_members").select("organization_id,role_id,is_active").eq("user_id",user.id).maybeSingle();
+ if(memberError || !member?.is_active || !["doctor","pharmacist"].includes(member.role_id)) throw new Error("Clinical access denied.");
+ return {user,admin,member};
+}
+
 /**
  * 1. AI System Health & Provider Status
  */
 export async function getAiEngineHealthAction() {
+  await requireClinicalMember();
   const isConfigured = isGeminiConfigured();
   const health = await checkGeminiHealth();
 
@@ -75,11 +87,13 @@ export async function runClinicalDocumentAiAnalysisAction(
     throw new Error("Database administration service unavailable.");
   }
 
+  const {member} = await requireClinicalMember();
   // 1. Fetch document metadata
   const { data: doc, error: docErr } = await admin
     .from("clinical_documents")
     .select("id, organization_id, patient_id, title, storage_path, current_version_number")
     .eq("id", documentId)
+    .eq("organization_id", member.organization_id)
     .single();
 
   if (docErr || !doc) {
@@ -91,7 +105,7 @@ export async function runClinicalDocumentAiAnalysisAction(
     .from("clinical-documents")
     .download(doc.storage_path);
 
-  let documentText = `CLINICAL PROGRESS NOTE: ${doc.title}`;
+  let documentText = "";
   if (!downloadErr && fileData) {
     if (doc.storage_path.toLowerCase().endsWith(".pdf")) {
       try {
@@ -111,6 +125,7 @@ export async function runClinicalDocumentAiAnalysisAction(
     }
   }
 
+  if (!documentText.trim()) throw new Error("No readable source document.");
   // Fetch latest document version ID
   const { data: latestVer } = await admin
     .from("document_versions")
@@ -119,7 +134,8 @@ export async function runClinicalDocumentAiAnalysisAction(
     .eq("version_number", doc.current_version_number)
     .maybeSingle();
 
-  const docVersionId = latestVer?.id || crypto.randomUUID();
+  if (!latestVer?.id) throw new Error("Document version missing.");
+  const docVersionId = latestVer.id;
 
   // Create extraction_jobs record
   const jobId = crypto.randomUUID();
@@ -275,12 +291,11 @@ export async function runClinicalDocumentAiAnalysisAction(
  * 3. Fetch Safety Alerts for a Patient or Workspace
  */
 export async function getPatientSafetyAlertsAction(patientId?: string): Promise<SafetyFinding[]> {
-  const admin = getSupabaseAdminClient();
-  if (!admin) return [];
+  const {admin,member} = await requireClinicalMember();
 
   let query = admin
     .from("safety_alerts")
-    .select("id, severity, title, summary, status, created_at");
+    .select("id, severity, title, summary, status, created_at").eq("organization_id",member.organization_id);
 
   if (patientId) {
     query = query.eq("patient_id", patientId);
@@ -288,7 +303,7 @@ export async function getPatientSafetyAlertsAction(patientId?: string): Promise<
 
   const { data: alerts, error } = await query.order("created_at", { ascending: false }).limit(20);
 
-  if (error || !alerts) return [];
+  if (error || !alerts) throw new Error("Unable to load safety alerts.");
 
   return alerts.map((a) => ({
     id: a.id,
@@ -326,11 +341,14 @@ export async function reviewClinicalFindingAction(
   const admin = getSupabaseAdminClient();
   if (!admin) throw new Error("Database admin service unavailable.");
 
+  const {member} = await requireClinicalMember();
+  if (!["endorsed","rejected","clarification_requested"].includes(decision) || !rationale.trim()) throw new Error("Valid decision and rationale required.");
   // Fetch alert
   const { data: alert, error: aErr } = await admin
     .from("safety_alerts")
     .select("id, organization_id, patient_id")
     .eq("id", alertId)
+    .eq("organization_id",member.organization_id)
     .single();
 
   if (aErr || !alert) throw new Error(`Safety alert ${alertId} not found.`);
@@ -389,9 +407,9 @@ export async function runHandoffAiAnalysisAction(
   handoffSummary: string,
   sourceChartText?: string
 ): Promise<{ omissions: HandoffOmissionItem[] }> {
-  const fallbackText =
-    sourceChartText ||
-    `ADMISSION RECORD: Patient Jane Doe. ALLERGIES: Penicillin (severe anaphylaxis). ACTIVE MEDICATIONS: Warfarin 2.5mg daily, Lisinopril 10mg daily. PENDING LABS: Repeat blood cultures, Serum Creatinine check at 06:00. CODE STATUS: Full Code.`;
+  await requireClinicalMember();
+  if (!sourceChartText?.trim() || !handoffSummary.trim()) throw new Error("Source chart and handoff summary required.");
+  const fallbackText = sourceChartText;
 
   const omissions = await evaluateClinicalHandoff({
     documentId: encounterId || crypto.randomUUID(),
@@ -411,6 +429,8 @@ export async function generateMultilingualDischargeAction(
   dischargeText: string,
   targetLanguage: SupportedLanguage
 ): Promise<{ draft: MultilingualDischargeDraft }> {
+  await requireClinicalMember();
+  if (!dischargeText.trim()) throw new Error("Discharge instructions required.");
   const draft = await generateMultilingualDischargeDraft(
     patientId || "00000000-0000-0000-0000-000000000002",
     dischargeText,
