@@ -31,6 +31,7 @@ import {
 } from "@/lib/auth/admin-actions";
 
 export default function AdminWorkspacePage() {
+  const [panel, setPanel] = React.useState<"registration" | "security" | null>(null);
   const [configStatus, setConfigStatus] = React.useState<SupabaseConfigStatus | null>(null);
   const [accounts, setAccounts] = React.useState<PendingAccountItem[]>([]);
   const [isLoadingAccounts, setIsLoadingAccounts] = React.useState(true);
@@ -84,20 +85,16 @@ export default function AdminWorkspacePage() {
         description="Manage registered users, review access requests and maintain institutional account permissions."
         actions={
           <div className="flex gap-2">
-            <Link href="/auth/signup">
-              <Button variant="primary" size="sm" leftIcon={<Users className="w-4 h-4" />}>
-                Registration page
-              </Button>
-            </Link>
-            <Link href="/security-privacy">
-              <Button variant="outline" size="sm" leftIcon={<Lock className="w-4 h-4" />}>
-                Security Specifications
-              </Button>
-            </Link>
+            <Button type="button" variant="primary" size="sm" onClick={()=>setPanel(p=>p==="registration"?null:"registration")} leftIcon={<Users className="w-4 h-4" />}>Registration page</Button>
+            <Button type="button" variant="outline" size="sm" onClick={()=>setPanel(p=>p==="security"?null:"security")} leftIcon={<Lock className="w-4 h-4" />}>Security Specifications</Button>
           </div>
         }
       />
 
+      {panel && <section className="rounded-xl border border-[var(--line)] p-5 space-y-3">
+        <div className="flex justify-between items-center"><h2 className="text-lg font-semibold">{panel==="registration"?"User registration":"Security specifications"}</h2><Button type="button" variant="outline" size="sm" onClick={()=>setPanel(null)}>Close</Button></div>
+        {panel==="registration"? <><p>Share this public registration address with new users. They must register in their own browser session, verify their email and await administrator approval.</p><input aria-label="Registration address" readOnly value="https://pramana-v1.vercel.app/auth/signup" className="w-full border rounded p-2" onFocus={e=>e.target.select()}/><Button type="button" onClick={async()=>{try{await navigator.clipboard.writeText("https://pramana-v1.vercel.app/auth/signup");setActionMessage("Registration address copied.");}catch{setActionMessage("Select and copy the registration address manually.");}}}>Copy registration link</Button></>:<><p>Workspace access requires a verified account and active organization membership. Role checks are enforced by server layouts.</p><p>Clinical privacy, patient-level access and external AI data handling require further validation before real patient use. No compliance certification is claimed.</p><a href="/security-privacy" target="_blank" rel="noopener noreferrer" className="underline text-[var(--green)]">Read full security design goals (new tab)</a></>}
+      </section>}
       {actionMessage && (
         <div className="p-3 text-[13px] text-[#145a45] bg-[#e5f1df] border border-[#c3d8c8] rounded-[7px] flex items-center gap-2">
           <CheckCircle2 className="w-4 h-4 shrink-0" />
@@ -194,7 +191,7 @@ export default function AdminWorkspacePage() {
               <div>
                 <p className="my-0">No other users have registered under this tenant yet.</p>
                 <p className="text-[12px] mt-1 text-[var(--muted)]">
-                  Clinicians can register at <Link href="/auth/signup" className="text-[var(--green)] underline">/auth/signup</Link> and their approval requests will appear here.
+                  Clinicians can register at <button type="button" onClick={()=>setPanel("registration")} className="text-[var(--green)] underline">the registration address</button> and their approval requests will appear here.
                 </p>
               </div>
             )}
