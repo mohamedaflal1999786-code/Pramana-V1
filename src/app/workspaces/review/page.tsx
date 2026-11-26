@@ -26,7 +26,7 @@ export default function ProfessionalReviewPage() {
       const data = await getPatientSafetyAlertsAction();
       setAlerts(data);
     } catch (err: any) {
-      console.error("Failed to load review items:", err);
+      setStatusMessage("Review queue could not be loaded.");
     } finally {
       setIsLoading(false);
     }
@@ -42,7 +42,9 @@ export default function ProfessionalReviewPage() {
   ) => {
     setSelectedAlertId(alertId);
     setPendingAction(action);
-    setRationale(action === "endorsed" ? "Confirmed valid clinical finding." : "");
+    const reason = window.prompt("Clinical rationale for this decision");
+    if (!reason?.trim()) return;
+    setRationale(reason.trim());
     setIsConfirmOpen(true);
   };
 
@@ -98,7 +100,7 @@ export default function ProfessionalReviewPage() {
           <EmptyState
             icon={<CheckSquare className="w-8 h-8" />}
             title="All Flagged Items Have Been Reviewed"
-            description="There are currently zero clinical findings pending review in this institutional ward. The attestation queue is clear."
+            description="There are currently zero clinical findings pending review in this institutional ward. "
           />
         ) : (
           <div className="space-y-4">
@@ -194,9 +196,9 @@ export default function ProfessionalReviewPage() {
 
         <div className="tile">
           <span className="num">AUDIT LOGGING</span>
-          <h3 className="text-[18px] font-[650] my-2">Cryptographic Attestation Stamp</h3>
+          <h3 className="text-[18px] font-[650] my-2">Review audit record</h3>
           <p className="text-[13px] text-[var(--muted)] leading-relaxed my-0">
-            Upon confirmation, Pramana-V1 generates an immutable audit record: Reviewer ID, Professional NPI/Role, Action Taken, Justification, and Millisecond Timestamp.
+            The database records the reviewer, role, decision, rationale and timestamp in the same transaction.
           </p>
         </div>
       </section>

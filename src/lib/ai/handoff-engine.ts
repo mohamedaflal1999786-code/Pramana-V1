@@ -18,6 +18,7 @@ import type { HandoffOmissionItem, EvidenceSourceLocation } from "./types";
 export interface HandoffVerificationInput {
   documentId: string;
   documentTitle: string;
+  versionNumber?: number;
   sourceChartText: string;
   handoffSummary: string;
 }
@@ -83,10 +84,11 @@ Analyze for critical omissions and return JSON:
       25000
     );
 
-    return (data.omissions || []).map((o) => {
+    if (!Array.isArray(data.omissions) || data.omissions.some(o=>!o.sourceQuote?.trim() || !input.sourceChartText.includes(o.sourceQuote))) throw new Error("Handoff evidence could not be verified.");
+    return data.omissions.map((o) => {
       const loc: EvidenceSourceLocation = {
         documentId: input.documentId,
-        versionNumber: 1,
+        versionNumber: input.versionNumber ?? 1,
         rawQuote: o.sourceQuote,
       };
 
@@ -101,7 +103,6 @@ Analyze for critical omissions and return JSON:
       };
     });
   } catch (err: any) {
-    console.error("[Handoff Engine Error]:", err.message);
-    return [];
+    throw new Error("Handoff analysis unavailable or evidence could not be verified.");
   }
 }

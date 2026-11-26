@@ -48,7 +48,7 @@ export async function getServerSessionContext(): Promise<UserSessionContext> {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user || !user.id) return fallback;
+  if (!user?.email_confirmed_at) return fallback;
 
   const admin = getSupabaseAdminClient();
   if (!admin) return fallback;
@@ -83,8 +83,7 @@ export async function getServerSessionContext(): Promise<UserSessionContext> {
     accountStatus = "approved";
   }
 
-  const orgName = (member as any)?.organizations?.name || "Pramana Academic Health System";
-  const orgId = member?.organization_id || "00000000-0000-0000-0000-000000000001";
+  const orgName = (member as any)?.organizations?.name || "";
 
   return {
     isAuthenticated: true,
@@ -101,9 +100,9 @@ export async function getServerSessionContext(): Promise<UserSessionContext> {
     },
     membership: member
       ? {
-          organizationId: orgId,
+          organizationId: member.organization_id,
           organizationName: orgName,
-          roleId: (member.role_id as UserRole) || "doctor",
+          roleId: member.role_id as UserRole,
           department: member.department,
           isActive: member.is_active,
         }

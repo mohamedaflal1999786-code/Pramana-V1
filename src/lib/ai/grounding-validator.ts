@@ -102,22 +102,7 @@ export async function validateEvidenceGrounding(
     };
   }
 
-  // Check if there is an existing clinical_entity with this quote
-  const { data: entityMatch } = await admin
-    .from("clinical_entities")
-    .select("id, raw_text")
-    .eq("patient_id", expectedPatientId)
-    .ilike("raw_text", `%${quote.substring(0, 40)}%`)
-    .limit(1);
-
-  if (entityMatch && entityMatch.length > 0) {
-    return { isValid: true, matchedText: entityMatch[0].raw_text };
-  }
-
-  return {
-    isValid: true, // Passed tenant and patient checks
-    matchedText: quote,
-  };
+  return { isValid: false, error: "Source version text required for quote verification." };
 }
 
 /**
@@ -138,7 +123,7 @@ export async function filterValidEvidenceSpans(
       validSpans.push(span);
     } else {
       rejectedCount++;
-      console.warn(`[Anti-Hallucination Guard] Rejected ungrounded span: ${result.error}`);
+
     }
   }
 

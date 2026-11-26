@@ -1,3 +1,4 @@
+import { readClinicalSource } from "@/lib/care/source";
 /**
  * Pramana-V1 - Reverse Evidence Lineage Tracing Engine
  * Team: Unknown GenZ
@@ -24,7 +25,7 @@ export class LineageEngine {
    */
   public static async traceEvidenceLineage(
     findingId: string,
-    organizationId: string
+    organizationId: string, patientId?: string
   ): Promise<EvidenceLineagePath> {
     const admin = getSupabaseAdminClient();
     if (!admin) throw new Error("Database admin client unavailable.");
@@ -34,6 +35,7 @@ export class LineageEngine {
       .from("evidence_nodes")
       .select("*")
       .eq("organization_id", organizationId)
+      .match(patientId ? {patient_id:patientId} : {})
       .or(`reference_id.eq.${findingId},id.eq.${findingId}`)
       .limit(1);
 
@@ -60,6 +62,7 @@ export class LineageEngine {
       .from("evidence_edges")
       .select("*")
       .eq("organization_id", organizationId)
+      .eq("patient_id",findingNode.patientId)
       .or(`source_node_id.eq.${findingNode.id},target_node_id.eq.${findingNode.id}`);
 
     const supportingEdges: SPGEdge[] = [];
@@ -108,6 +111,7 @@ export class LineageEngine {
       const { data: entitySpanEdges } = await admin
         .from("evidence_edges")
         .select("*")
+        .eq("patient_id",findingNode.patientId).eq("organization_id",organizationId)
         .in("source_node_id", Array.from(entityNodeIds))
         .eq("relationship_type", "SUPPORTED_BY");
 
@@ -132,6 +136,7 @@ export class LineageEngine {
       const { data: spanDocEdges } = await admin
         .from("evidence_edges")
         .select("*")
+        .eq("patient_id",findingNode.patientId).eq("organization_id",organizationId)
         .in("source_node_id", Array.from(spanNodeIds))
         .eq("relationship_type", "EXTRACTED_FROM");
 
@@ -162,6 +167,7 @@ export class LineageEngine {
     const { data: fetchedNodes } = await admin
       .from("evidence_nodes")
       .select("*")
+      .eq("patient_id",findingNode.patientId).eq("organization_id",organizationId)
       .in("id", allQueryIds);
 
     let ruleNode: SPGNode | undefined = undefined;
@@ -197,22 +203,17 @@ export class LineageEngine {
     }
 
     // 6. Verbatim Quote Verification across spans
-    let verbatimQuotesMatch = true;
-    const unresolvedGaps: string[] = [];
-
+    let verbatimQuotesMatch = evidenceSpanNodes.length > 0;
+    const unresolvedGaps:string[] = [];
     for (const span of evidenceSpanNodes) {
-      const quote = span.metadata?.quote;
-      if (!quote || quote.trim().length === 0) {
-        verbatimQuotesMatch = false;
-        unresolvedGaps.push(`Evidence span ${span.id} has empty quote string.`);
-      }
+      const id = span.metadata?.documentId;
+      if (typeof id !== "string") {verbatimQuotesMatch=false;continue;}
+      try {
+        const source=await readClinicalSource(id);
+        if (source.version.version_number!==span.metadata.versionNumber || typeof span.metadata.rawQuote!=="string" || !span.metadata.rawQuote.trim() || !source.text.includes(span.metadata.rawQuote)) verbatimQuotesMatch=false;
+      } catch {verbatimQuotesMatch=false;}
     }
-
-    if (evidenceSpanNodes.length === 0) {
-      verbatimQuotesMatch = false;
-      unresolvedGaps.push("Clinical finding lacks grounded evidence spans in graph.");
-    }
-
+    if (!verbatimQuotesMatch) unresolvedGaps.push("One or more source passages could not be independently verified against the stored version.");
     return {
       findingNode,
       ruleNode,

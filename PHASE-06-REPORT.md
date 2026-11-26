@@ -21,7 +21,7 @@ All 16 automated verification test cases passed (100% pass rate). Furthermore, a
 |---|---|---|
 | **Screenshot 1: Unrecognized Client ID** | Legacy OAuth handshake query parameter mismatch. | Fixed by isolating direct Supabase authentication via SSR cookie sessions, bypassing fragile third-party OAuth callbacks. |
 | **Screenshot 2 & 3: "Auth session missing!" on Reset Password** | Supabase email recovery tokens had expired (`otp_expired`) or were invalid when the user submitted the form. | Updated `src/app/auth/reset-password/page.tsx` with dedicated expired link detection, clear administrator notice, and direct password synchronization for `adminpramana@gmail.com`. |
-| **Screenshot 4: Verification in Progress / Pending Approval** | New user registrations and default invitations are placed in `is_active = false` pending institutional PSO review. | Fixed user profile and organization membership in PostgreSQL: `adminpramana@gmail.com` elevated to `role_id: 'platform_admin'`, `is_active: true`, and password synchronized directly to `Taanu@29082008`. |
+| **Screenshot 4: Verification in Progress / Pending Approval** | New user registrations and default invitations are placed in `is_active = false` pending institutional PSO review. | Fixed user profile and organization membership in PostgreSQL: `adminpramana@gmail.com` elevated to `role_id: 'platform_admin'`, `is_active: true`, and password synchronized directly to `[credential removed]`. |
 | **Audit Schema Cache Error (`actor_id`)** | Code attempted to write to non-existent `actor_id` column in `audit_logs`. | Removed invalid column reference in `src/lib/auth/audit.ts` and nested actor information cleanly inside JSONB `details`. |
 
 ---
@@ -97,6 +97,6 @@ TOTAL TESTS: 16 | PASSED: 16 | FAILED: 0 | PASS RATE: 100%
 Your administrative credentials have been configured:
 - **URL:** [http://localhost:3000/auth/signin](file:///c:/Users/mxdaf/Pramana-V1/src/app/auth/signin/page.tsx)
 - **Email:** `adminpramana@gmail.com`
-- **Password:** `Taanu@29082008`
+- **Password:** `[credential removed]`
 - **Role:** `platform_admin` (`is_active: true`, Email Confirmed: `true`)
 - **Direct Workspace:** `/workspaces/admin` (full governance & institutional control)

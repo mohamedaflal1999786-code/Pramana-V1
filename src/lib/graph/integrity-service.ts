@@ -78,14 +78,14 @@ export class IntegrityService {
       charEnd !== undefined &&
       charStart >= 0 &&
       charEnd <= rawText.length &&
-      charEnd >= charStart
+      charEnd > charStart
     ) {
       const slice = rawText.slice(charStart, charEnd).trim();
-      offsetAccurate = slice === normQuote || slice.includes(normQuote) || normQuote.includes(slice);
+      offsetAccurate = slice === normQuote;
     }
 
     return {
-      isValid: actualMatch,
+      isValid: actualMatch && ((charStart === undefined && charEnd === undefined) || offsetAccurate),
       actualMatch,
       offsetAccurate,
       normalizedQuote: normQuote,

@@ -6,7 +6,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
-import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { workspaceIdentity } from "@/lib/actions/care-actions";
 import { signOutAction } from "@/lib/auth/actions";
 import {
   Stethoscope,
@@ -54,32 +54,13 @@ export function WorkspaceLayout({
     fullName: "Loading account…",
     email: "",
     role: activeRole,
-    institution: "Pramana Academic Health System",
+    institution: "",
   });
 
   React.useEffect(() => {
-    async function loadUser() {
-      const supabase = getSupabaseBrowserClient();
-      if (!supabase) return;
-
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (user) {
-        const metaName = user.user_metadata?.full_name;
-        const metaInst = user.user_metadata?.institution;
-        const metaRole = user.app_metadata?.role;
-
-        setUserProfile({
-          fullName: metaName || user.email?.split("@")[0] || "Attending Clinician",
-          email: user.email || "",
-          role: metaRole || activeRole,
-          institution: metaInst || "Pramana Academic Health System",
-        });
-      }
-    }
-    loadUser();
+    let mounted = true;
+    workspaceIdentity().then(profile => { if (mounted) setUserProfile(profile); }).catch(()=>{});
+    return ()=>{mounted=false;};
   }, [activeRole]);
 
   const handleSignOut = async () => {
@@ -102,12 +83,12 @@ export function WorkspaceLayout({
     { label: "Safety Provenance Graph", href: "/workspaces/graph", icon: <Network className="w-4 h-4" /> },
     { label: "Medication Safety", href: "/workspaces/medications", icon: <Pill className="w-4 h-4" /> },
     { label: "Clinical Handoffs", href: "/workspaces/handoffs", icon: <ArrowRightLeft className="w-4 h-4" /> },
-    { label: "Safety Alert Centre", href: "/workspaces/alerts", icon: <AlertTriangle className="w-4 h-4" />, badge: "0" },
+    { label: "Safety Alert Centre", href: "/workspaces/alerts", icon: <AlertTriangle className="w-4 h-4" /> },
     { label: "Multilingual Discharge", href: "/workspaces/discharge", icon: <Languages className="w-4 h-4" /> },
     { label: "Professional Review", href: "/workspaces/review", icon: <CheckSquare className="w-4 h-4" /> },
   ];
 
-  const visibleModules = homeRole === "patient" ? [] : clinicalModules;
+  const visibleModules = homeRole === "patient" || homeRole==="admin" ? [] : clinicalModules.filter(m=>homeRole==="doctor" || m.href!=="/workspaces/discharge");
   React.useEffect(() => { setMobileMenuOpen(false); }, [pathname]);
   React.useEffect(() => {
     if (!mobileMenuOpen) return;
@@ -339,11 +320,6 @@ export function WorkspaceLayout({
                           {m.icon}
                           <span>{m.label}</span>
                         </div>
-                        {m.badge && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[#e6ede2] text-[var(--green)] font-bold">
-                            {m.badge}
-                          </span>
-                        )}
                       </Link>
                     );
                   })}

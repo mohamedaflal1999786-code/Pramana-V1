@@ -7,21 +7,23 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Languages, CheckCircle2, ShieldCheck, HeartHandshake, Sparkles, AlertCircle } from "lucide-react";
-import { generateMultilingualDischargeAction } from "@/lib/actions/ai-actions";
-import { SUPPORTED_LANGUAGES_MAP } from "@/lib/ai/multilingual-discharge";
+import { pendingDischarges } from "@/lib/actions/care-actions";
+import { PatientPicker } from "@/components/workspace/PatientPicker";
+import { approveDischarge, generateMultilingualDischargeAction } from "@/lib/actions/ai-actions";
+import { SUPPORTED_LANGUAGES_MAP } from "@/lib/ai/languages";
 import type { SupportedLanguage, MultilingualDischargeDraft } from "@/lib/ai/types";
 
 export default function MultilingualDischargePage() {
+  const [patientId,setPatientId] = React.useState("");
+  return <WorkspaceLayout pageTitle="Multilingual Discharge"><PatientPicker value={patientId} onChange={setPatientId}/>{patientId && <DraftEditor key={patientId} patientId={patientId}/>}</WorkspaceLayout>;
+}
+function DraftEditor({patientId}:{patientId:string}) {
+  const [saved,setSaved] = React.useState<Awaited<ReturnType<typeof pendingDischarges>>>([]);
+  const [notice,setNotice]=React.useState("");
+  const refresh=React.useCallback(()=>pendingDischarges(patientId).then(setSaved).catch(()=>setNotice("Saved drafts unavailable.")),[patientId]);
+  React.useEffect(()=>{void refresh();},[refresh]);
   const [targetLang, setTargetLang] = React.useState<SupportedLanguage>("ta");
-  const [inputText, setInputText] = React.useState(
-    `DISCHARGE INSTRUCTIONS:
-Diagnosis: Type 2 Diabetes Mellitus with Mild Chronic Kidney Disease (Stage 3a).
-1. Continue Metformin 500mg by mouth twice daily with morning and evening meals.
-2. Continue Lisinopril 10mg by mouth once daily in the morning for kidney protection and blood pressure.
-3. Check fasting blood sugar each morning. Goal: 90-130 mg/dL.
-4. Dietary guidelines: Low sodium (under 2,000 mg/day). Avoid grapefruit and high-potassium salt substitutes.
-5. WARNING SYMPTOMS: Seek emergency medical attention immediately if you experience shortness of breath, severe chest pain, dizziness, or swelling of the face, lips, or throat.`
-  );
+  const [inputText,setInputText] = React.useState("");
   const [draft, setDraft] = React.useState<MultilingualDischargeDraft | null>(null);
   const [isLoading, setIsLoading] = React.useState(false);
   const [isAttested, setIsAttested] = React.useState(false);
@@ -32,11 +34,11 @@ Diagnosis: Type 2 Diabetes Mellitus with Mild Chronic Kidney Disease (Stage 3a).
     setIsAttested(false);
     try {
       const res = await generateMultilingualDischargeAction(
-        "00000000-0000-0000-0000-000000000002",
+        patientId,
         inputText,
         targetLang
       );
-      setDraft(res.draft);
+      setDraft(res.draft); await refresh();
     } catch (err: any) {
       alert(`Translation failed: ${err.message}`);
     } finally {
@@ -45,7 +47,12 @@ Diagnosis: Type 2 Diabetes Mellitus with Mild Chronic Kidney Disease (Stage 3a).
   };
 
   return (
-    <WorkspaceLayout pageTitle="Multilingual Discharge Assistant">
+    <>
+      <section className="tile mb-4"><h2>Saved drafts awaiting review</h2><p role="status">{notice}</p>
+        {saved.map(row=><details key={row.id}><summary>{row.language} · {row.id.slice(0,8)}</summary><h3>Original</h3><p className="whitespace-pre-wrap">{row.source}</p><h3>Translation</h3><p className="whitespace-pre-wrap">{row.translation}</p><button className="underline" onClick={async()=>{
+          const reason=window.prompt("Record your review of names, doses, frequencies and instructions.");if(!reason?.trim())return;
+          try {await approveDischarge(row.id,reason);setNotice("Approval recorded.");if(draft?.id===row.id)setIsAttested(true);await refresh();}catch{setNotice("Approval unavailable.");}
+        }}>Approve reviewed instructions</button></details>)}</section>
       <PageHeader
         eyebrow="Patient Health Literacy & Safety"
         title="Multilingual Discharge Guidance"
@@ -55,7 +62,7 @@ Diagnosis: Type 2 Diabetes Mellitus with Mild Chronic Kidney Disease (Stage 3a).
             <span className="text-[13px] font-[650] text-[var(--muted)]">Target Language:</span>
             <select
               value={targetLang}
-              onChange={(e) => setTargetLang(e.target.value as SupportedLanguage)}
+              disabled={isLoading} onChange={(e) => {setTargetLang(e.target.value as SupportedLanguage);setDraft(null);}}
               className="text-[13px] border border-[var(--line)] rounded-[6px] py-1.5 px-3 bg-white font-[650] text-[var(--ink)] cursor-pointer"
             >
               {Object.entries(SUPPORTED_LANGUAGES_MAP).map(([code, label]) => (
@@ -91,7 +98,7 @@ Diagnosis: Type 2 Diabetes Mellitus with Mild Chronic Kidney Disease (Stage 3a).
 
           <textarea
             value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
+            disabled={isLoading} onChange={(e) => {setInputText(e.target.value);setDraft(null);}}
             className="w-full h-72 p-3 text-[13px] border border-[var(--line)] rounded-[8px] font-sans focus:outline-none focus:border-[var(--green)] resize-none"
             placeholder="Type or paste doctor discharge orders here..."
           />
@@ -131,7 +138,7 @@ Diagnosis: Type 2 Diabetes Mellitus with Mild Chronic Kidney Disease (Stage 3a).
                     {draft.validatedMedications.map((m, idx) => (
                       <div key={idx} className="text-[11px] p-2 bg-[#f4f7f4] rounded flex items-center justify-between">
                         <span className="font-mono text-[var(--ink)]">{m.original}</span>
-                        <span className="text-[var(--green)] font-semibold">✓ Dose & Brand Preserved</span>
+                        <span className="text-[var(--green)] font-semibold">Requires clinician comparison</span>
                       </div>
                     ))}
                   </div>
@@ -158,7 +165,13 @@ Diagnosis: Type 2 Diabetes Mellitus with Mild Chronic Kidney Disease (Stage 3a).
                 <Button
                   variant={isAttested ? "outline" : "primary"}
                   className="w-full"
-                  onClick={() => setIsAttested(!isAttested)}
+                  disabled={isAttested}
+                  onClick={async () => {
+                    const rationale = window.prompt("After comparing the source and translation, record your review of medication names, doses and instructions.");
+                    if (!rationale?.trim()) return;
+                    try { await approveDischarge(draft.id,rationale); setIsAttested(true); await refresh(); }
+                    catch { window.alert("Approval could not be saved."); }
+                  }}
                   leftIcon={<CheckCircle2 className="w-4 h-4" />}
                 >
                   {isAttested ? "✓ Clinical Attestation Recorded" : "Attest & Approve for Patient Delivery"}
@@ -177,6 +190,6 @@ Diagnosis: Type 2 Diabetes Mellitus with Mild Chronic Kidney Disease (Stage 3a).
           Machine translations of medical guidance are strictly provisional. Hospital staff or a licensed clinical provider must examine and verify the translated guidance prior to delivering paperwork to the patient.
         </p>
       </section>
-    </WorkspaceLayout>
+    </>
   );
 }

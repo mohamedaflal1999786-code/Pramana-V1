@@ -14,6 +14,7 @@
 
 "use server";
 
+import { createHmac } from "node:crypto";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getSupabaseAdminClient } from "@/lib/supabase/admin";
 import { logAuditEvent } from "@/lib/auth/audit";
@@ -27,25 +28,13 @@ export interface AuthActionResult {
   requiresEmailVerification?: boolean;
 }
 
-// Memory-backed rate limit tracker for sensitive auth actions (resend, reset)
-const rateLimitMap = new Map<string, { count: number; lastTimestamp: number }>();
-
-function checkRateLimit(key: string, maxAttempts = 3, windowMs = 60000): boolean {
-  const now = Date.now();
-  const entry = rateLimitMap.get(key);
-  if (!entry) {
-    rateLimitMap.set(key, { count: 1, lastTimestamp: now });
-    return true;
-  }
-  if (now - entry.lastTimestamp > windowMs) {
-    rateLimitMap.set(key, { count: 1, lastTimestamp: now });
-    return true;
-  }
-  if (entry.count >= maxAttempts) {
-    return false;
-  }
-  entry.count += 1;
-  return true;
+async function checkRateLimit(key:string,limit:number) {
+  const admin=getSupabaseAdminClient();
+  const secret=process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if(!admin || !secret) return false;
+  const hash=createHmac("sha256",secret).update("auth-rate:"+key).digest("hex");
+  const {data,error}=await admin.rpc("allow_auth_request",{p_key:hash,p_limit:limit});
+  return !error && data===true;
 }
 
 /**
@@ -94,6 +83,7 @@ export async function signInAction(
     return { success: false, error: "Authentication service currently unavailable. Please check system configuration." };
   }
 
+  if (!await checkRateLimit("signin:"+email,12)) return {success:false,error:"Sign-in unavailable. Try again in a minute."};
   const { data, error } = await supabase.auth.signInWithPassword({
     email,
     password,
@@ -170,6 +160,7 @@ export async function signUpAction(formData: FormData): Promise<AuthActionResult
   }
 
   if (!["doctor", "pharmacist", "patient"].includes(requestedRole)) return { success: false, error: "Invalid registration role." };
+  if (!await checkRateLimit("signup:"+email,3)) return {success:false,error:"Registration unavailable. Try again in a minute."};
   const passwordCheck = await validatePasswordComplexity(password);
   if (!passwordCheck.valid) {
     return { success: false, error: passwordCheck.reason };
@@ -216,15 +207,14 @@ export async function signUpAction(formData: FormData): Promise<AuthActionResult
     });
 
     // 2. Insert Membership as Pending (is_active = false)
-    // Patients can be active by default if registered as patient, but professionals require approval
-    const isPatient = false;
+
     await admin.from("organization_members").upsert(
       {
         organization_id: defaultOrgId,
         user_id: user.id,
         role_id: requestedRole,
         department: institution || "Clinical Staff",
-        is_active: isPatient, // Patients active, professionals pending institutional review
+        is_active: false,
       },
       { onConflict: "organization_id,user_id", ignoreDuplicates: true }
     );
@@ -291,7 +281,7 @@ export async function requestPasswordResetAction(email: string): Promise<AuthAct
     return { success: false, error: "Please provide a valid email address." };
   }
 
-  if (!checkRateLimit(`reset:${cleanEmail}`, 3, 60000)) {
+  if (!await checkRateLimit(`reset:${cleanEmail}`, 3)) {
     return {
       success: false,
       error: "Too many password reset requests. Please wait a minute before trying again.",
@@ -407,7 +397,7 @@ export async function resendVerificationAction(email: string): Promise<AuthActio
     return { success: false, error: "Please enter a valid email address." };
   }
 
-  if (!checkRateLimit(`verify:${cleanEmail}`, 2, 60000)) {
+  if (!await checkRateLimit(`verify:${cleanEmail}`, 2)) {
     return {
       success: false,
       error: "Rate limit reached. Please wait 60 seconds before requesting another verification email.",

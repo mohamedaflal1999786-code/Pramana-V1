@@ -87,7 +87,7 @@ export interface ExtractedClinicalEntity {
   isNegated: boolean; // e.g. "No known drug allergies", "Denies chest pain"
   uncertaintyNotes?: string;
   sourceLocation: EvidenceSourceLocation;
-  confidenceScore: number;
+  confidenceScore?: number;
 }
 
 export interface DeterministicSafetyRule {

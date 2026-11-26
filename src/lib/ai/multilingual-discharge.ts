@@ -18,18 +18,7 @@ if (typeof window !== "undefined") {
 import { generateStructuredClinicalJson } from "./gemini-client";
 import type { MultilingualDischargeDraft, SupportedLanguage } from "./types";
 
-export const SUPPORTED_LANGUAGES_MAP: Record<SupportedLanguage, string> = {
-  en: "English",
-  ta: "Tamil (தமிழ்)",
-  hi: "Hindi (हिन्दी)",
-  te: "Telugu (తెలుగు)",
-  ml: "Malayalam (മലയാളം)",
-  kn: "Kannada (ಕನ್ನಡ)",
-  es: "Spanish (Español)",
-  ar: "Arabic (العربية)",
-  zh: "Mandarin Chinese (简体中文)",
-};
-
+import { SUPPORTED_LANGUAGES_MAP } from "./languages";
 const DISCHARGE_TRANSLATION_SYSTEM_PROMPT = `You are the Pramana-V1 Multilingual Clinical Discharge Specialist.
 Your task is to translate hospital discharge instructions into patient-friendly, plain language while strictly preserving all clinical parameters.
 

@@ -57,7 +57,7 @@ export async function extractClinicalEntitiesWithGemini(
   documentId: string,
   versionNumber: number,
   documentText: string,
-  pageNumber = 1
+  pageNumber?: number
 ): Promise<{
   entities: ExtractedClinicalEntity[];
   promptTokens: number;
@@ -104,7 +104,7 @@ Return strictly JSON:
       documentId,
       versionNumber,
       pageNumber,
-      rawQuote: e.rawQuote || e.name,
+      rawQuote: e.rawQuote || "",
     };
 
     return {
@@ -116,11 +116,11 @@ Return strictly JSON:
       dosageUnit: e.dosageUnit,
       frequency: e.frequency,
       route: e.route,
-      status: e.status || "current",
+      status: e.status || "unknown",
       isNegated: !!e.isNegated,
       uncertaintyNotes: e.uncertaintyNotes,
       sourceLocation: loc,
-      confidenceScore: 0.95,
+
     };
   });
 

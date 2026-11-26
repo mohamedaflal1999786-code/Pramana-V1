@@ -23,7 +23,7 @@ export class ImpactAnalyzer {
   public static async runForwardImpactAnalysis(
     sourceNodeId: string,
     organizationId: string,
-    maxDepth = 6
+    maxDepth = 6, patientId?: string
   ): Promise<ForwardImpactResult> {
     const admin = getSupabaseAdminClient();
     if (!admin) throw new Error("Database admin client unavailable.");
@@ -33,6 +33,7 @@ export class ImpactAnalyzer {
       .from("evidence_nodes")
       .select("*")
       .eq("organization_id", organizationId)
+      .match(patientId ? {patient_id:patientId} : {})
       .eq("id", sourceNodeId)
       .maybeSingle();
 
@@ -135,6 +136,7 @@ export class ImpactAnalyzer {
       const { data: nodesData } = await admin
         .from("evidence_nodes")
         .select("*")
+        .eq("organization_id",organizationId).eq("patient_id",sourceNode.patientId)
         .in("id", affectedNodeIds);
       affectedNodesData = nodesData || [];
     }

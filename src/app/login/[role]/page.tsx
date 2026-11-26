@@ -1,7 +1,7 @@
 "use client";
 import React from "react";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound,useParams } from "next/navigation";
 import { ShieldCheck, Stethoscope, Pill, HeartPulse, ArrowLeft } from "lucide-react";
 import { signInAction } from "@/lib/auth/actions";
 const portals = {
@@ -10,10 +10,10 @@ const portals = {
  pharmacist:{title:"Pharmacist",description:"Medication reconciliation and safety verification.",Icon:Pill},
  patient:{title:"Patient",description:"Your authorized health information and care guidance.",Icon:HeartPulse}
 };
-export default function LoginPortal({params}:{params:{role:string}}){
+export default function LoginPortal(){
  const [busy,setBusy]=React.useState(false);
  const [error,setError]=React.useState("");
- const role=params.role as keyof typeof portals;
+ const role=useParams<{role:string}>().role as keyof typeof portals;
  const portal=portals[role];
  if(!portal) notFound();
  const Icon=portal.Icon;

@@ -5,6 +5,9 @@ import { WorkspaceLayout } from "@/components/workspace/WorkspaceLayout";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { runClinicalDocumentAiAnalysisAction } from "@/lib/actions/ai-actions";
+import { listEncounterSources } from "@/lib/actions/care-actions";
+import { PatientPicker } from "@/components/workspace/PatientPicker";
 import { FileUpload } from "@/components/ui/FileUpload";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/Table";
@@ -34,6 +37,15 @@ import {
 } from "@/lib/actions/document-actions";
 
 export default function DocumentIntelligencePage() {
+  const [patientId,setPatientId] = React.useState("");
+  const [previous,setPrevious]=React.useState("");
+  const [encounters,setEncounters] = React.useState<{id:string;encounter_number:string}[]>([]);
+  const [encounterId,setEncounterId] = React.useState("");
+  React.useEffect(()=>{
+    let current=true; setEncounterId("");setEncounters([]);setPrevious("");
+    if(patientId) listEncounterSources(patientId).then(r=>{if(current)setEncounters(r.encounters);}).catch(()=>{if(current)setUploadStatus({success:false,message:"Encounter list unavailable."});});
+    return ()=>{current=false;};
+  },[patientId]);
   const [activeTab, setActiveTab] = React.useState<"upload" | "extracted">("upload");
   const [selectedCategory, setSelectedCategory] = React.useState<string>("discharge_summary");
   const [customTitle, setCustomTitle] = React.useState<string>("");
@@ -90,6 +102,9 @@ export default function DocumentIntelligencePage() {
     try {
       const formData = new FormData();
       formData.set("file", file);
+      formData.set("patientId",patientId);
+      if(previous) formData.set("previousDocument",previous);
+      if(encounterId) formData.set("encounterId",encounterId);
       formData.set("documentType", selectedCategory);
       if (customTitle.trim()) {
         formData.set("title", customTitle.trim());
@@ -126,7 +141,10 @@ export default function DocumentIntelligencePage() {
 
   // Review entity action
   const handleReviewEntity = async (entityId: string, action: "verify" | "reject" | "clarify") => {
-    const res = await reviewEntityAction(entityId, action);
+    const rationale = window.prompt("Reason for this evidence decision");
+    if (!rationale?.trim()) return;
+    const res = await reviewEntityAction(entityId, action, rationale);
+    if (!res.success) setUploadStatus({success:false,message:res.error});
     if (res.success && selectedDocId) {
       await handleSelectDocument(selectedDocId);
     }
@@ -201,7 +219,7 @@ export default function DocumentIntelligencePage() {
                   Ingest Encounter Documentation
                 </h3>
                 <p className="text-[13px] text-[var(--muted)] my-0 leading-relaxed">
-                  Supports PDF, TXT, JPG, PNG, JSON, FHIR R4, XML, and HL7 v2 (Max 25 MB). Files are validated, hashed (SHA-256), and encrypted in private tenancy storage.
+                  Supports PDF, TXT, JPG, PNG, JSON, FHIR R4, XML, and HL7 v2 (Max 3.5 MB). Files are validated, hashed (SHA-256), and encrypted in private tenancy storage.
                 </p>
               </div>
             </div>
@@ -241,10 +259,15 @@ export default function DocumentIntelligencePage() {
               </div>
             </div>
 
+            <PatientPicker value={patientId} onChange={setPatientId} />
+            <label>Document version<select className="block mb-4 border p-2" value={previous} onChange={e=>setPrevious(e.target.value)}><option value="">New document</option>{documents.filter(d=>d.patientId===patientId).map(d=><option key={d.id} value={d.id}>New version of {d.title}</option>)}</select></label>
+            <label>Encounter<select className="block mb-4 border p-2" value={encounterId} onChange={e=>setEncounterId(e.target.value)}>
+              <option value="">No encounter selected</option>{encounters.map(e=><option key={e.id} value={e.id}>{e.encounter_number}</option>)}
+            </select></label>
             <FileUpload
               onFilesSelected={handleFilesSelected}
               acceptedFormats={[".pdf", ".txt", ".jpg", ".jpeg", ".png", ".json", ".xml", ".hl7"]}
-              maxSizeMB={25}
+              maxSizeMB={3.5}
               disabled={isUploading}
             />
 
@@ -368,7 +391,7 @@ export default function DocumentIntelligencePage() {
                     <span>•</span>
                     <span>Format: <strong className="font-mono text-[var(--ink)]">{docDetails.document.mime_type}</strong></span>
                     <span>•</span>
-                    <span>Patient MRN: <strong className="font-mono text-[var(--ink)]">{docDetails.document.patients?.mrn || "SYNTH-PAT-001"}</strong></span>
+                    <span><button className="underline mr-3" onClick={async()=>{try { await runClinicalDocumentAiAnalysisAction(docDetails.document.id); await handleSelectDocument(docDetails.document.id); setUploadStatus({success:true,message:"Analysis saved."}); } catch {setUploadStatus({success:false,message:"Analysis could not be completed."});}}}>Analyze source</button>Patient MRN: <strong className="font-mono text-[var(--ink)]">{docDetails.document.patients?.mrn || "Unavailable"}</strong></span>
                   </div>
                 </div>
 
@@ -442,7 +465,7 @@ export default function DocumentIntelligencePage() {
                           </TableCell>
                           <TableCell>
                             <span className="text-[12px] font-semibold text-[var(--green)]">
-                              {Math.round((ent.confidence_score || 0.95) * 100)}%
+                              {ent.confidence_score == null ? "Unavailable" : Math.round(ent.confidence_score * 100) + "%"}
                             </span>
                           </TableCell>
                           <TableCell>

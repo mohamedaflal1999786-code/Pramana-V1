@@ -127,9 +127,9 @@ export function evaluateDeterministicSafetyRules(
 ): SafetyFinding[] {
   const findings: SafetyFinding[] = [];
 
-  const medications = entities.filter((e) => e.entityType === "medication" && !e.isNegated);
-  const allergies = entities.filter((e) => e.entityType === "allergy" && !e.isNegated);
-  const labs = entities.filter((e) => e.entityType === "lab_result");
+  const medications = entities.filter((e) => e.entityType === "medication" && e.status === "current" && !e.isNegated && e.sourceLocation.rawQuote.toLowerCase().includes(e.name.toLowerCase()));
+  const allergies = entities.filter((e) => e.entityType === "allergy" && !e.isNegated && e.sourceLocation.rawQuote.toLowerCase().includes(e.name.toLowerCase()));
+  const labs = entities.filter((e) => e.entityType === "lab_result" && !e.isNegated);
 
   const normalizedMeds = medications.map((m) => ({
     entity: m,
@@ -164,7 +164,6 @@ export function evaluateDeterministicSafetyRules(
       supportingSpans: [warfarin.entity.sourceLocation, nsaid.entity.sourceLocation],
       reviewStatus: "unverified",
       isDeterministic: true,
-      modelConfidence: 1.0,
     });
   }
 
@@ -199,7 +198,6 @@ export function evaluateDeterministicSafetyRules(
       supportingSpans: [penAllergy.sourceLocation, betaLactamMed.entity.sourceLocation],
       reviewStatus: "unverified",
       isDeterministic: true,
-      modelConfidence: 1.0,
     });
   }
 
@@ -208,10 +206,8 @@ export function evaluateDeterministicSafetyRules(
   // ---------------------------------------------------------------------------
   const metformin = normalizedMeds.find((m) => m.norm.includes("metformin"));
   const renalLab = labs.find((l) => {
-    const text = (l.name + " " + l.sourceLocation.rawQuote).toLowerCase();
-    const hasEgfrLow = text.includes("egfr") && /\b([12]\d|[0-9])\b/.test(text); // eGFR < 30
-    const hasCreatinineHigh = text.includes("creatinine") && /\b(1\.[89]|[2-9]\.\d|[1-9]\d)\b/.test(text); // Cr >= 1.8
-    return hasEgfrLow || hasCreatinineHigh;
+    const measured = l.sourceLocation.rawQuote.match(/\beGFR\s*[:=]?\s*(\d+(?:\.\d+)?)\s*mL\/min\/1\.73\s*m(?:2|²)/i);
+    return measured !== null && Number(measured[1]) < 30;
   });
 
   if (metformin && renalLab) {
@@ -228,7 +224,6 @@ export function evaluateDeterministicSafetyRules(
       supportingSpans: [metformin.entity.sourceLocation, renalLab.sourceLocation],
       reviewStatus: "unverified",
       isDeterministic: true,
-      modelConfidence: 1.0,
     });
   }
 
@@ -254,7 +249,6 @@ export function evaluateDeterministicSafetyRules(
       supportingSpans: [clopidogrel.entity.sourceLocation, omeprazole.entity.sourceLocation],
       reviewStatus: "unverified",
       isDeterministic: true,
-      modelConfidence: 1.0,
     });
   }
 
@@ -263,13 +257,8 @@ export function evaluateDeterministicSafetyRules(
   // ---------------------------------------------------------------------------
   const lisinoprilHighDose = normalizedMeds.find((m) => {
     if (!m.norm.includes("lisinopril")) return false;
-    const quote = (m.entity.dosage || "") + " " + m.entity.sourceLocation.rawQuote;
-    const match = quote.match(/(\d+)\s*(?:mg|milligram)/i);
-    if (match) {
-      const dose = parseInt(match[1], 10);
-      return dose > 40;
-    }
-    return false;
+    const dose = m.entity.sourceLocation.rawQuote.match(/\blisinopril\s+(\d+(?:\.\d+)?)\s*mg\s+(?:once\s+)?daily\b/i);
+    return dose !== null && Number(dose[1]) > 40;
   });
 
   if (lisinoprilHighDose) {
@@ -286,7 +275,6 @@ export function evaluateDeterministicSafetyRules(
       supportingSpans: [lisinoprilHighDose.entity.sourceLocation],
       reviewStatus: "unverified",
       isDeterministic: true,
-      modelConfidence: 1.0,
     });
   }
 
@@ -322,7 +310,6 @@ export function evaluateDeterministicSafetyRules(
       supportingSpans: [aceInhibitor.entity.sourceLocation, arb.entity.sourceLocation],
       reviewStatus: "unverified",
       isDeterministic: true,
-      modelConfidence: 1.0,
     });
   }
 

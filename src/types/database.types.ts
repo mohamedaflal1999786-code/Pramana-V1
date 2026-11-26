@@ -1031,6 +1031,15 @@ export interface Database {
         };
       };
 
+      patient_account_links: {
+        Row: { organization_id:string; patient_id:string; user_id:string; verified_by:string; verified_at:string };
+        Insert: never; Update: never;
+      };
+      patient_care_access: {
+        Row: { organization_id: string; patient_id: string; user_id: string };
+        Insert: { organization_id: string; patient_id: string; user_id: string };
+        Update: never;
+      };
       consent_records: {
         Row: {
           id: string;
@@ -1063,6 +1072,15 @@ export interface Database {
       };
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      allow_auth_request:{Args:{p_key:string;p_limit:number};Returns:boolean};
+      record_uploaded_version:{Args:{p_org:string;p_patient:string;p_actor:string;p_document:string;p_encounter:string|null;p_title:string;p_kind:string;p_mime:string;p_bytes:number;p_path:string;p_hash:string;p_new:boolean};Returns:{version_id:string;version_no:number;job_id:string}[]};
+      finish_grounded_analysis: { Args:{p_job:string;p_actor:string;p_entities:Json;p_findings:Json;p_metadata:Json};Returns:undefined };
+      approve_discharge_draft: { Args: { p_id:string; p_rationale:string }; Returns: undefined };
+      save_discharge_draft: { Args: { p_org:string; p_patient:string; p_source:string; p_translation:string; p_language:string }; Returns:string };
+      assign_care_access: { Args: { p_org:string; p_mrn:string; p_account:string; p_identity_verified:boolean }; Returns:undefined };
+      register_care_patient: { Args: { p_org: string; p_first: string; p_last: string; p_birth: string; p_consent: boolean }; Returns: string };
+      review_care_alert: { Args: { p_alert: string; p_decision: string; p_rationale: string }; Returns: string };
+    };
   };
 }

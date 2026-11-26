@@ -1,5 +1,6 @@
 "use client";
 
+import { PatientPicker } from "@/components/workspace/PatientPicker";
 import * as React from "react";
 import { WorkspaceLayout } from "@/components/workspace/WorkspaceLayout";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -33,6 +34,14 @@ import {
 import type { SPGNode, SPGEdge, SafetyProvenanceGraphData } from "@/lib/graph/types";
 
 export default function SafetyProvenanceGraphPage() {
+  const [patientId,setPatientId] = React.useState("");
+  return <WorkspaceLayout activeRole="doctor">
+    <PatientPicker value={patientId} onChange={setPatientId} />
+    {patientId && <PatientContent key={patientId} patientId={patientId} />}
+  </WorkspaceLayout>;
+}
+
+function PatientContent({patientId}:{patientId:string}) {
   const [graphData, setGraphData] = React.useState<SafetyProvenanceGraphData | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
@@ -56,7 +65,7 @@ export default function SafetyProvenanceGraphPage() {
     setIsLoading(true);
     setError(null);
     try {
-      const data = await getPatientSafetyProvenanceGraphAction();
+      const data = await getPatientSafetyProvenanceGraphAction(patientId);
       setGraphData(data);
       if (data.nodes.length > 0) {
         // Default select first finding or entity
@@ -71,7 +80,7 @@ export default function SafetyProvenanceGraphPage() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [patientId]);
 
   React.useEffect(() => {
     fetchGraph();
@@ -121,7 +130,7 @@ export default function SafetyProvenanceGraphPage() {
       const res = await reviewGraphFindingAction(
         nodeId,
         decision,
-        `Clinician marked finding as ${decision} via Provenance Console.`
+        window.prompt("Clinical rationale for this decision") || ""
       );
       if (res.success) {
         await fetchGraph();
@@ -163,7 +172,7 @@ export default function SafetyProvenanceGraphPage() {
   }, [graphData, filteredNodes]);
 
   return (
-    <WorkspaceLayout pageTitle="Safety Provenance Graph">
+    <>
       <PageHeader
         eyebrow="Flagship Technical Innovation"
         title="Safety Provenance Graph (SPG)"
@@ -389,6 +398,6 @@ export default function SafetyProvenanceGraphPage() {
         onClose={() => setIsSimModalOpen(false)}
         patientId={graphData?.nodes[0]?.patientId || "00000000-0000-0000-0000-000000000002"}
       />
-    </WorkspaceLayout>
+    </>
   );
 }

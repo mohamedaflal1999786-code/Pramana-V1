@@ -9,6 +9,6 @@ export default async function RoleLayout({children}:{children:React.ReactNode}) 
  const admin=getSupabaseAdminClient();
  if(!admin) redirect("/auth/signin");
  const {data:member,error:membershipError}=await admin.from("organization_members").select("is_active,role_id").eq("user_id",user.id).maybeSingle();
- if(membershipError || !member || !member.is_active || !["doctor","pharmacist","institutional_admin","platform_admin"].includes(member.role_id)) redirect("/auth/signin");
+ if(membershipError || !member || !member.is_active || !["doctor"].includes(member.role_id)) redirect("/auth/signin");
  return <>{children}</>;
 }

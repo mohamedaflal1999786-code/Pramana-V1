@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { CareForm } from "@/components/workspace/CareForm";
 import { WorkspaceLayout } from "@/components/workspace/WorkspaceLayout";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Badge } from "@/components/ui/Badge";
@@ -79,6 +80,7 @@ export default function AdminWorkspacePage() {
 
   return (
     <WorkspaceLayout activeRole="admin">
+      <CareForm mode="assign"/>
       <PageHeader
         eyebrow="Institutional Governance"
         title="Administration & Compliance Console"
@@ -93,7 +95,7 @@ export default function AdminWorkspacePage() {
 
       {panel && <section className="rounded-xl border border-[var(--line)] p-5 space-y-3">
         <div className="flex justify-between items-center"><h2 className="text-lg font-semibold">{panel==="registration"?"User registration":"Security specifications"}</h2><Button type="button" variant="outline" size="sm" onClick={()=>setPanel(null)}>Close</Button></div>
-        {panel==="registration"? <><p>Share this public registration address with new users. They must register in their own browser session, verify their email and await administrator approval.</p><input aria-label="Registration address" readOnly value="https://pramana-v1.vercel.app/auth/signup" className="w-full border rounded p-2" onFocus={e=>e.target.select()}/><Button type="button" onClick={async()=>{try{await navigator.clipboard.writeText("https://pramana-v1.vercel.app/auth/signup");setActionMessage("Registration address copied.");}catch{setActionMessage("Select and copy the registration address manually.");}}}>Copy registration link</Button></>:<><p>Workspace access requires a verified account and active organization membership. Role checks are enforced by server layouts.</p><p>Clinical privacy, patient-level access and external AI data handling require further validation before real patient use. No compliance certification is claimed.</p><a href="/security-privacy" target="_blank" rel="noopener noreferrer" className="underline text-[var(--green)]">Read full security design goals (new tab)</a></>}
+        {panel==="registration"? <><p>Share this public registration address with new users. They must register in their own browser session, verify their email and await administrator approval.</p><input aria-label="Registration address" readOnly value="https://pramana-v1.vercel.app/auth/signup" className="w-full border rounded p-2" onFocus={e=>e.target.select()}/><Button type="button" onClick={async()=>{try{await navigator.clipboard.writeText("https://pramana-v1.vercel.app/auth/signup");setActionMessage("Registration address copied.");}catch{setActionMessage("Select and copy the registration address manually.");}}}>Copy registration link</Button></>:<><a className="underline" href="/auth/mfa">Manage two-factor authentication</a><p>Workspace access requires a verified account and active organization membership. Role checks are enforced by server layouts.</p><p>Clinical privacy, patient-level access and external AI data handling require further validation before real patient use. No compliance certification is claimed.</p><a href="/security-privacy" target="_blank" rel="noopener noreferrer" className="underline text-[var(--green)]">Read full security design goals (new tab)</a></>}
       </section>}
       {actionMessage && (
         <div className="p-3 text-[13px] text-[#145a45] bg-[#e5f1df] border border-[#c3d8c8] rounded-[7px] flex items-center gap-2">
@@ -142,7 +144,7 @@ export default function AdminWorkspacePage() {
                 <TableRow key={acc.id}>
                   <TableCell>
                     <div className="font-semibold text-[var(--ink)]">{acc.fullName}</div>
-                    <div className="text-[12px] text-[var(--muted)]">{acc.email}</div>
+                    <div className="text-[12px] text-[var(--muted)]">{acc.email}</div><small className="break-all">Account ID · {acc.userId}</small>
                   </TableCell>
                   <TableCell>
                     <span className="capitalize font-semibold text-[13px]">{acc.requestedRole.replace("_", " ")}</span>

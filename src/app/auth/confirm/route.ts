@@ -24,8 +24,8 @@ export async function GET(request: NextRequest) {
       });
 
       if (!error) {
-        const safeNext = next.startsWith("/") && !next.startsWith("//") ? next : "/workspaces/doctor";
-        return NextResponse.redirect(new URL(safeNext, request.url));
+        const destination = new URL(next, request.url);
+        return NextResponse.redirect(destination.origin === request.nextUrl.origin ? destination : new URL("/auth/signin",request.url));
       }
       console.error("[Auth Confirm Error]:", error.message);
     }

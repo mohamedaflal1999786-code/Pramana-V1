@@ -1,5 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+ serverExternalPackages:["unpdf"],
+ experimental:{serverActions:{bodySizeLimit:"4mb"}},
  reactStrictMode:true, poweredByHeader:false, productionBrowserSourceMaps:false,
  async headers(){return [{source:"/:path*",headers:[
  {key:"X-Content-Type-Options",value:"nosniff"},

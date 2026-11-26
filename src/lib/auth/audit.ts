@@ -29,7 +29,9 @@ export type AuditAction =
   | "security.privilege_escalation_blocked"
   | "spg.evidence_invalidated"
   | "spg.simulation_executed"
-  | "spg.finding_reviewed";
+  | "spg.finding_reviewed"
+  | "ai.document_analyzed"
+  | "document.ingested";
 
 export interface LogAuditEventParams {
   action: AuditAction;
@@ -94,7 +96,7 @@ export async function logAuditEvent(params: LogAuditEventParams): Promise<void> 
       : null;
 
     const { error } = await admin.from("audit_logs").insert({
-      organization_id: params.organizationId || "00000000-0000-0000-0000-000000000001",
+      organization_id: params.organizationId || null,
       action: params.action,
       entity_type: params.entityType || "auth_session",
       entity_id: targetEntityId,

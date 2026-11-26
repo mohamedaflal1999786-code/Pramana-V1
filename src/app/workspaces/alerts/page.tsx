@@ -31,7 +31,7 @@ export default function SafetyAlertsPage() {
       setAlerts(fetchedAlerts);
       setAiStatus(health);
     } catch (err: any) {
-      console.error("Failed to load safety alerts:", err.message);
+      setActionFeedback("Safety alert data unavailable.");
     } finally {
       setIsLoading(false);
     }
@@ -46,7 +46,9 @@ export default function SafetyAlertsPage() {
     decision: "endorsed" | "rejected" | "clarification_requested"
   ) => {
     try {
-      const res = await reviewClinicalFindingAction(alertId, decision, `Clinician marked as ${decision}`);
+      const rationale = window.prompt("Clinical rationale");
+      if (!rationale?.trim()) return;
+      const res = await reviewClinicalFindingAction(alertId,decision,rationale);
       if (res.success) {
         setActionFeedback(res.message);
         setTimeout(() => setActionFeedback(null), 3000);
@@ -157,7 +159,7 @@ export default function SafetyAlertsPage() {
           <EmptyState
             icon={<ShieldCheck className="w-8 h-8" />}
             title="Zero Safety Alerts Detected"
-            description="The active surveillance queue is clear. No unverified contraindications or handoff discrepancies are flagged in the current session."
+            description="No recorded alerts are flagged in the current session."
           />
         ) : (
           <div className="space-y-4">

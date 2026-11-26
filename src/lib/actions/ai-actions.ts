@@ -24,6 +24,7 @@ import { filterValidEvidenceSpans } from "@/lib/ai/grounding-validator";
 import { evaluateDeterministicSafetyRules } from "@/lib/ai/safety-rules";
 import { analyzeMissingEvidence } from "@/lib/ai/missing-evidence";
 import { evaluateClinicalHandoff } from "@/lib/ai/handoff-engine";
+import { SUPPORTED_LANGUAGES_MAP } from "@/lib/ai/languages";
 import { generateMultilingualDischargeDraft } from "@/lib/ai/multilingual-discharge";
 import { parsePdfDocument } from "@/lib/extraction/parsers/pdf-parser";
 import type {
@@ -35,16 +36,8 @@ import type {
   HandoffOmissionItem,
 } from "@/lib/ai/types";
 
-async function requireClinicalMember() {
- const client = await createSupabaseServerClient();
- const admin = getSupabaseAdminClient();
- if (!client || !admin) throw new Error("Service unavailable.");
- const {data:{user},error} = await client.auth.getUser();
- if(error || !user?.email_confirmed_at) throw new Error("Authentication required.");
- const {data:member,error:memberError} = await admin.from("organization_members").select("organization_id,role_id,is_active").eq("user_id",user.id).maybeSingle();
- if(memberError || !member?.is_active || !["doctor","pharmacist"].includes(member.role_id)) throw new Error("Clinical access denied.");
- return {user,admin,member};
-}
+import { readClinicalSource } from "@/lib/care/source";
+import { requireClinicalMember, assignedPatientIds, requirePatient } from "@/lib/care/access";
 
 /**
  * 1. AI System Health & Provider Status
@@ -69,73 +62,8 @@ export async function getAiEngineHealthAction() {
 export async function runClinicalDocumentAiAnalysisAction(
   documentId: string
 ): Promise<AiAnalysisJobResult> {
-  const supabase = await createSupabaseServerClient();
-  if (!supabase) {
-    throw new Error("Authentication service unavailable.");
-  }
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    throw new Error("Authentication required to invoke clinical intelligence engine.");
-  }
-
-  const admin = getSupabaseAdminClient();
-  if (!admin) {
-    throw new Error("Database administration service unavailable.");
-  }
-
-  const {member} = await requireClinicalMember();
-  // 1. Fetch document metadata
-  const { data: doc, error: docErr } = await admin
-    .from("clinical_documents")
-    .select("id, organization_id, patient_id, title, storage_path, current_version_number")
-    .eq("id", documentId)
-    .eq("organization_id", member.organization_id)
-    .single();
-
-  if (docErr || !doc) {
-    throw new Error(`Document ${documentId} not found.`);
-  }
-
-  // 2. Fetch raw document from Supabase private storage
-  const { data: fileData, error: downloadErr } = await admin.storage
-    .from("clinical-documents")
-    .download(doc.storage_path);
-
-  let documentText = "";
-  if (!downloadErr && fileData) {
-    if (doc.storage_path.toLowerCase().endsWith(".pdf")) {
-      try {
-        const arrayBuf = await fileData.arrayBuffer();
-        const pdfParsed = await parsePdfDocument(new Uint8Array(arrayBuf));
-        if (pdfParsed.fullText && pdfParsed.fullText.trim().length > 10) {
-          documentText = pdfParsed.fullText;
-        }
-      } catch (pdfErr: any) {
-        console.warn("[ai-actions] PDF parse fallback note:", pdfErr?.message);
-      }
-    } else {
-      const text = await fileData.text();
-      if (text && text.trim().length > 10) {
-        documentText = text;
-      }
-    }
-  }
-
-  if (!documentText.trim()) throw new Error("No readable source document.");
-  // Fetch latest document version ID
-  const { data: latestVer } = await admin
-    .from("document_versions")
-    .select("id")
-    .eq("document_id", doc.id)
-    .eq("version_number", doc.current_version_number)
-    .maybeSingle();
-
-  if (!latestVer?.id) throw new Error("Document version missing.");
-  const docVersionId = latestVer.id;
+  const {scope:{admin,user},doc,version,text:documentText} = await readClinicalSource(documentId);
+  const docVersionId = version.id;
 
   // Create extraction_jobs record
   const jobId = crypto.randomUUID();
@@ -146,7 +74,7 @@ export async function runClinicalDocumentAiAnalysisAction(
     status: "processing",
     model_version: getGeminiModelName(),
     started_at: new Date().toISOString(),
-  });
+  }).throwOnError();
 
   try {
     // 3. Extract Clinical Entities via Gemini
@@ -165,103 +93,25 @@ export async function runClinicalDocumentAiAnalysisAction(
       documentText
     );
 
+    const accepted = new Set(validSpans);
+    const entities = extractionResult.entities.filter(e => accepted.has(e.sourceLocation));
     // 5. Evaluate Deterministic Safety Rulebook
-    const safetyFindings = evaluateDeterministicSafetyRules(extractionResult.entities);
+    const safetyFindings = evaluateDeterministicSafetyRules(entities);
 
     // 6. Analyze Missing Evidence & Clinical Gaps
-    const missingEvidence = analyzeMissingEvidence(extractionResult.entities, documentText);
+    const missingEvidence = analyzeMissingEvidence(entities, documentText);
 
-    // 7. Persist Entities into Database
-    if (extractionResult.entities.length > 0) {
-      const entityRows = extractionResult.entities.map((e) => ({
-        id: e.id,
-        organization_id: doc.organization_id,
-        document_version_id: docVersionId,
-        patient_id: doc.patient_id,
-        entity_type: e.entityType,
-        raw_text: e.sourceLocation.rawQuote || e.name,
-        normalized_name: e.name,
-        normalized_code: e.normalizedCode || null,
-        confidence_score: e.confidenceScore,
-        source_location: e.sourceLocation as any,
-        is_verified: false,
-      }));
-
-      await admin.from("clinical_entities").insert(entityRows);
-    }
-
-    // 8. Persist Safety Alerts & Evidence Nodes
-    for (const finding of safetyFindings) {
-      const alertId = finding.id;
-
-      await admin.from("safety_alerts").insert({
-        id: alertId,
-        organization_id: doc.organization_id,
-        patient_id: doc.patient_id,
-        severity: (finding.severity === "moderate" ? "medium" : finding.severity) as any,
-        title: finding.title,
-        summary: finding.summary,
-        status: "pending_review",
-      });
-
-      // Insert Evidence Nodes for graph provenance
-      for (const span of finding.supportingSpans) {
-        const nodeId = crypto.randomUUID();
-        await admin.from("evidence_nodes").insert({
-          id: nodeId,
-          organization_id: doc.organization_id,
-          patient_id: doc.patient_id,
-          node_type: "document_span" as any,
-          reference_id: span.documentId,
-          label: span.rawQuote.substring(0, 50),
-          metadata: {
-            quote: span.rawQuote,
-            page: span.pageNumber || 1,
-            ruleCode: finding.ruleCode,
-          },
-        });
-      }
-    }
-
-    // 9. Update extraction_job as completed
-    await admin
-      .from("extraction_jobs")
-      .update({
-        status: "completed",
-        completed_at: new Date().toISOString(),
-        metadata: {
-          entityCount: extractionResult.entities.length,
-          alertCount: safetyFindings.length,
-          missingEvidenceCount: missingEvidence.length,
-          rejectedHallucinations: rejectedCount,
-          promptTokens: extractionResult.promptTokens,
-          completionTokens: extractionResult.completionTokens,
-        },
-      })
-      .eq("id", jobId);
-
-    // 10. Log Audit Trail
-    await logAuditEvent({
-      action: "auth.login_success",
-      userId: user.id,
-      organizationId: doc.organization_id,
-      entityType: "clinical_ai_run",
-      entityId: jobId,
-      details: {
-        action_type: "ai.document_analyzed",
-        documentId: doc.id,
-        model: getGeminiModelName(),
-        entitiesCount: extractionResult.entities.length,
-        findingsCount: safetyFindings.length,
-      },
+    const {error:saveError} = await admin.rpc("finish_grounded_analysis",{
+      p_job:jobId,p_actor:user.id,p_entities:JSON.parse(JSON.stringify(entities)),p_findings:JSON.parse(JSON.stringify(safetyFindings)),
+      p_metadata:{entityCount:entities.length,alertCount:safetyFindings.length,rejectedHallucinations:rejectedCount}
     });
-
+    if (saveError) throw new Error("Analysis unavailable or already recorded for this version.");
     return {
       jobId,
       documentId: doc.id,
       patientId: doc.patient_id,
       success: true,
-      extractedEntities: extractionResult.entities,
+      extractedEntities: entities,
       safetyFindings,
       contradictions: [],
       missingEvidence,
@@ -279,7 +129,7 @@ export async function runClinicalDocumentAiAnalysisAction(
       .update({
         status: "failed",
         completed_at: new Date().toISOString(),
-        error_message: err?.message || "Unknown error during AI analysis",
+        error_message: "Clinical analysis did not complete.",
       })
       .eq("id", jobId);
 
@@ -291,11 +141,14 @@ export async function runClinicalDocumentAiAnalysisAction(
  * 3. Fetch Safety Alerts for a Patient or Workspace
  */
 export async function getPatientSafetyAlertsAction(patientId?: string): Promise<SafetyFinding[]> {
-  const {admin,member} = await requireClinicalMember();
+  const ctx = await requireClinicalMember();
+  const {admin,member} = ctx;
+  const ids = await assignedPatientIds(ctx);
+  if (!ids.length) return [];
 
   let query = admin
     .from("safety_alerts")
-    .select("id, severity, title, summary, status, created_at").eq("organization_id",member.organization_id);
+    .select("id, severity, title, summary, status, created_at").eq("organization_id",member.organization_id).in("patient_id",ids);
 
   if (patientId) {
     query = query.eq("patient_id", patientId);
@@ -317,7 +170,7 @@ export async function getPatientSafetyAlertsAction(patientId?: string): Promise<
     supportingSpans: [],
     reviewStatus: a.status as any,
     isDeterministic: true,
-    modelConfidence: 1.0,
+
   }));
 }
 
@@ -329,74 +182,10 @@ export async function reviewClinicalFindingAction(
   decision: "endorsed" | "rejected" | "clarification_requested",
   rationale: string
 ): Promise<{ success: boolean; message: string }> {
-  const supabase = await createSupabaseServerClient();
-  if (!supabase) throw new Error("Authentication service unavailable.");
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) throw new Error("Authentication required for clinical review.");
-
-  const admin = getSupabaseAdminClient();
-  if (!admin) throw new Error("Database admin service unavailable.");
-
-  const {member} = await requireClinicalMember();
-  if (!["endorsed","rejected","clarification_requested"].includes(decision) || !rationale.trim()) throw new Error("Valid decision and rationale required.");
-  // Fetch alert
-  const { data: alert, error: aErr } = await admin
-    .from("safety_alerts")
-    .select("id, organization_id, patient_id")
-    .eq("id", alertId)
-    .eq("organization_id",member.organization_id)
-    .single();
-
-  if (aErr || !alert) throw new Error(`Safety alert ${alertId} not found.`);
-
-  // Map review status
-  const mappedStatus =
-    decision === "endorsed"
-      ? "endorsed"
-      : decision === "rejected"
-      ? "rejected"
-      : "clarification_requested";
-
-  await admin
-    .from("safety_alerts")
-    .update({
-      status: mappedStatus,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", alertId);
-
-  // Insert into clinical_reviews
-  await admin.from("clinical_reviews").insert({
-    organization_id: alert.organization_id,
-    alert_id: alertId,
-    reviewer_id: user.id,
-    reviewer_role: "attending_physician",
-    review_decision: decision as any,
-    clinical_rationale: rationale || "Clinician review documented.",
-  });
-
-  // Log audit event
-  await logAuditEvent({
-    action: "auth.login_success",
-    userId: user.id,
-    organizationId: alert.organization_id,
-    entityType: "clinical_alert_review",
-    entityId: alertId,
-    details: {
-      action_type: "review.documented",
-      decision,
-      rationale,
-    },
-  });
-
-  return {
-    success: true,
-    message: `Clinical finding successfully updated to ${decision}.`,
-  };
+  const { client } = await requireClinicalMember();
+  const { error } = await client.rpc("review_care_alert",{p_alert:alertId,p_decision:decision,p_rationale:rationale});
+  if (error) throw new Error("Review unavailable or already closed.");
+  return { success: true, message: "Review saved." };
 }
 
 /**
@@ -405,19 +194,15 @@ export async function reviewClinicalFindingAction(
 export async function runHandoffAiAnalysisAction(
   encounterId: string,
   handoffSummary: string,
-  sourceChartText?: string
+  documentId: string
 ): Promise<{ omissions: HandoffOmissionItem[] }> {
-  await requireClinicalMember();
-  if (!sourceChartText?.trim() || !handoffSummary.trim()) throw new Error("Source chart and handoff summary required.");
-  const fallbackText = sourceChartText;
-
-  const omissions = await evaluateClinicalHandoff({
-    documentId: encounterId || crypto.randomUUID(),
-    documentTitle: "Hospital Encounter Chart",
-    sourceChartText: fallbackText,
-    handoffSummary,
-  });
-
+  if (!handoffSummary.trim() || handoffSummary.length > 16000) throw new Error("A handoff summary is required.");
+  const {scope,doc,version,text} = await readClinicalSource(documentId);
+  if (!encounterId || doc.encounter_id !== encounterId) throw new Error("Select a document linked to this encounter.");
+  const {data} = await scope.admin.from("encounters").select("id").eq("id",encounterId)
+    .eq("organization_id",scope.org).eq("patient_id",scope.patientId).maybeSingle();
+  if (!data) throw new Error("Encounter unavailable.");
+  const omissions = await evaluateClinicalHandoff({documentId,documentTitle:doc.title,versionNumber:version.version_number,sourceChartText:text,handoffSummary});
   return { omissions };
 }
 
@@ -429,13 +214,21 @@ export async function generateMultilingualDischargeAction(
   dischargeText: string,
   targetLanguage: SupportedLanguage
 ): Promise<{ draft: MultilingualDischargeDraft }> {
-  await requireClinicalMember();
-  if (!dischargeText.trim()) throw new Error("Discharge instructions required.");
-  const draft = await generateMultilingualDischargeDraft(
-    patientId || "00000000-0000-0000-0000-000000000002",
-    dischargeText,
-    targetLanguage
-  );
+  const {client, admin, member, org} = await requirePatient(patientId);
+  if (member.role_id !== "doctor" || !dischargeText.trim() || dischargeText.length > 16000 ||
+      !Object.prototype.hasOwnProperty.call(SUPPORTED_LANGUAGES_MAP,targetLanguage)) throw new Error("Invalid translation request.");
+  const draft = await generateMultilingualDischargeDraft(patientId,dischargeText,targetLanguage);
+  const numbers = (s:string) => (s.match(/\d+(?:[.,]\d+)*/g) || []).sort().join("|");
+  if (!draft.translatedInstructions.trim() || numbers(dischargeText) !== numbers(draft.translatedInstructions)) throw new Error("Quantities differ. Translation requires revision.");
+  const meds=await admin.from("medications").select("drug_name").eq("organization_id",org).eq("patient_id",patientId);
+  if(meds.error || meds.data.some(m=>dischargeText.toLowerCase().includes(m.drug_name.toLowerCase()) && !draft.translatedInstructions.toLowerCase().includes(m.drug_name.toLowerCase()))) throw new Error("Medication name verification failed.");
+  const {data,error} = await client.rpc("save_discharge_draft",{p_org:org,p_patient:patientId,p_language:targetLanguage,p_source:dischargeText,p_translation:draft.translatedInstructions});
+  if (error || !data) throw new Error("Draft could not be saved.");
+  return {draft:{...draft,id:data}};
+}
 
-  return { draft };
+export async function approveDischarge(id:string,rationale:string) {
+  const {client} = await requireClinicalMember();
+  const {error} = await client.rpc("approve_discharge_draft",{p_id:id,p_rationale:rationale});
+  if (error) throw new Error("Approval could not be recorded.");
 }

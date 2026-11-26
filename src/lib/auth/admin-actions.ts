@@ -79,11 +79,11 @@ export async function listInstitutionalAccountsAction(organizationId?: string): 
 
   if (error || !members) return [];
 
-  return members.filter((m: any) => !["synthetic-suspended@pramana.local","synthetic-pending@pramana.local"].includes(m.profiles?.email)).map((m: any) => ({
+  return members.map((m: any) => ({
     id: m.id,
     userId: m.user_id,
     fullName: m.profiles?.full_name || "Unknown Professional",
-    email: m.profiles?.email || "unknown@hospital.org",
+    email: m.profiles?.email || "",
     requestedRole: m.role_id,
     department: m.department,
     isActive: m.is_active,
@@ -131,6 +131,8 @@ export async function approveAccountAction(
   const { data: target } = await admin.from("organization_members").select("role_id").eq("user_id",targetUserId).eq("organization_id",callerMember!.organization_id).maybeSingle();
   if (["11111111-1111-1111-1111-111111111111","22222222-2222-2222-2222-222222222222"].includes(targetUserId)) return {success:false,error:"Test fixture cannot be activated."};
   if (!target || !["doctor","pharmacist","patient"].includes(target.role_id) || (assignedRole && assignedRole !== target.role_id)) return {success:false,error:"Invalid account or role."};
+  const identity = await admin.auth.admin.getUserById(targetUserId);
+  if (!identity.data.user?.email_confirmed_at) return {success:false,error:"Email verification required."};
   const updatePayload: Record<string, any> = { is_active: true };
   if (assignedRole) {
     updatePayload.role_id = assignedRole;

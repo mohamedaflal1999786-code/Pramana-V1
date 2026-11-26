@@ -27,6 +27,8 @@ import { executeDocumentExtraction } from "@/lib/extraction/engine";
 import type { ReviewStatus, ClinicalEntityType } from "@/lib/extraction/types";
 import type { DocumentType } from "@/types/database.types";
 
+import { requireClinicalMember, assignedPatientIds, requirePatient } from "@/lib/care/access";
+
 async function authorizedDocumentOrg() {
   const supabase = await createSupabaseServerClient();
   const admin = getSupabaseAdminClient();
@@ -61,6 +63,7 @@ export interface DocumentListItem {
   createdAt: string;
   entityCount: number;
   patientMrn?: string;
+  patientId: string;
 }
 
 /**
@@ -85,14 +88,15 @@ export async function uploadClinicalDocumentAction(
   const file = formData.get("file") as File | null;
   const documentType = ((formData.get("documentType") as string) || "discharge_summary") as DocumentType;
   const customTitle = (formData.get("title") as string)?.trim();
-  const patientId = (formData.get("patientId") as string) || "00000000-0000-0000-0000-000000000002";
+  const patientId = (formData.get("patientId") as string) || "";
 
-  if (!(file instanceof File) || file.size > 25 * 1024 * 1024) {
-    return { success: false, error: "No file was attached to the ingestion request." };
+  if (!(file instanceof File) || file.size > 3.5 * 1024 * 1024) {
+    return { success: false, error: "Attach a file up to 3.5 MB." };
   }
 
   const defaultOrgId = await authorizedDocumentOrg();
   if (!defaultOrgId) return { success: false, error: "Authorized clinical membership required." };
+  await requirePatient(patientId);
   const arrayBuffer = await file.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
 
@@ -120,10 +124,17 @@ export async function uploadClinicalDocumentAction(
   const { data: patient, error: patientError } = await admin.from("patients").select("id").eq("id",patientId).eq("organization_id",defaultOrgId).maybeSingle();
   if (patientError || !patient) return { success: false, error: "Patient not available in authorized organization." };
 
+  const encounterId = formData.get("encounterId");
+  if (encounterId) {
+    const {data} = await admin.from("encounters").select("id").eq("id",String(encounterId))
+      .eq("organization_id",defaultOrgId).eq("patient_id",patientId).maybeSingle();
+    if (!data) return {success:false,error:"Encounter unavailable."};
+  }
   // Duplicate detection by SHA-256 within the institution
   const { data: existingVersion } = await admin
     .from("document_versions")
-    .select("document_id, version_number")
+    .select("document_id, version_number, clinical_documents!inner(patient_id)")
+    .eq("clinical_documents.patient_id",patientId)
     .eq("sha256_hash", validation.sha256Hash)
     .eq("organization_id", defaultOrgId)
     .maybeSingle();
@@ -150,54 +161,20 @@ export async function uploadClinicalDocumentAction(
   }
 
   const documentTitle = customTitle || validation.sanitizedFilename;
-  const docId = crypto.randomUUID();
-
-  // Create clinical_documents record
-  const { error: docError } = await admin.from("clinical_documents").insert({
-    id: docId,
-    organization_id: defaultOrgId,
-    patient_id: patientId,
-    title: documentTitle,
-    document_type: documentType,
-    mime_type: validation.mimeType,
-    file_size_bytes: validation.fileSizeBytes,
-    storage_path: validation.storagePath,
-    current_version_number: 1,
-    quarantine_status: "validated",
+  const previous = String(formData.get("previousDocument") || "");
+  const docId = previous || crypto.randomUUID();
+  const {data:versions,error:saveError}=await admin.rpc("record_uploaded_version",{
+    p_org:defaultOrgId,p_patient:patientId,p_actor:user.id,p_document:docId,p_encounter:encounterId?String(encounterId):null,
+    p_title:documentTitle,p_kind:documentType,p_mime:validation.mimeType,p_bytes:validation.fileSizeBytes,
+    p_path:validation.storagePath,p_hash:validation.sha256Hash,p_new:!previous
   });
-
-  if (docError) {
-    await deleteFromClinicalStorage(validation.storagePath);
-    return { success: false, error: `Database insert failed: ${docError.message}` };
+  if (saveError || !versions?.length) {
+    // The RPC response can be lost after commit. Confirm absence before deleting bytes.
+    const check=await admin.from("document_versions").select("id").eq("organization_id",defaultOrgId).eq("storage_path",validation.storagePath).maybeSingle();
+    if (!check.error && !check.data) await deleteFromClinicalStorage(validation.storagePath);
+    return {success:false,error:"Document metadata could not be confirmed."};
   }
-
-  const versionId = crypto.randomUUID();
-
-  // Create document_versions record
-  const {error: versionError} = await admin.from("document_versions").insert({
-    id: versionId,
-    organization_id: defaultOrgId,
-    document_id: docId,
-    version_number: 1,
-    sha256_hash: validation.sha256Hash,
-    storage_path: validation.storagePath,
-    uploaded_by: user.id,
-  });
-
-  if (versionError) return {success:false,documentId:docId,error:"Document version could not be recorded. Contact an administrator."};
-  const jobId = crypto.randomUUID();
-
-  // Create extraction_jobs record
-  const {error: jobError} = await admin.from("extraction_jobs").insert({
-    id: jobId,
-    organization_id: defaultOrgId,
-    document_version_id: versionId,
-    status: "processing",
-    model_version: "pramana-extractor-v1.2.0",
-    started_at: new Date().toISOString(),
-  });
-
-  if (jobError) return {success:false,documentId:docId,error:"Extraction job could not be created."};
+  const {version_id:versionId,job_id:jobId,version_no:versionNumber}=versions[0];
   // Run Extraction Engine
   const extraction = await executeDocumentExtraction(
     buffer,
@@ -205,7 +182,7 @@ export async function uploadClinicalDocumentAction(
     validation.mimeType,
     validation.sha256Hash,
     docId,
-    1
+    versionNumber
   );
 
   // Persist Extracted Entities into clinical_entities
@@ -242,11 +219,11 @@ export async function uploadClinicalDocumentAction(
       },
       error_message: extraction.errors.length > 0 ? extraction.errors.join("; ") : null,
     })
-    .eq("id", jobId);
+    .eq("id", jobId).throwOnError();
 
   // Log Audit Event
   await logAuditEvent({
-    action: "auth.login_success", // general audit
+    action: "document.ingested",
     userId: user.id,
     organizationId: defaultOrgId,
     entityType: "clinical_document",
@@ -264,7 +241,7 @@ export async function uploadClinicalDocumentAction(
     success: extraction.success,
     error: extraction.success ? undefined : "Extraction failed. Document retained for investigation.",
     documentId: docId,
-    versionNumber: 1,
+    versionNumber,
     sha256Hash: validation.sha256Hash,
     title: documentTitle,
     entityCount: extraction.entities.length,
@@ -296,9 +273,10 @@ export async function listClinicalDocumentsAction(
       current_version_number,
       quarantine_status,
       created_at,
-      patients ( mrn )
+      patient_id, patients ( mrn )
     `)
     .eq("organization_id", defaultOrgId)
+    .in("patient_id", await assignedPatientIds(await requireClinicalMember()))
     .order("created_at", { ascending: false }).limit(100);
 
   if (searchQuery && searchQuery.length <= 120) {
@@ -319,6 +297,7 @@ export async function listClinicalDocumentsAction(
     quarantineStatus: doc.quarantine_status,
     createdAt: doc.created_at,
     entityCount: 0,
+    patientId: doc.patient_id,
     patientMrn: doc.patients?.mrn || undefined,
   }));
 }
@@ -341,6 +320,7 @@ export async function getDocumentDetailsAction(documentId: string) {
 
   if (docError || !doc) return null;
 
+  await requirePatient(doc.patient_id);
   // Fetch document versions
   const { data: versions } = await admin
     .from("document_versions")
@@ -393,6 +373,8 @@ export async function reviewEntityAction(
 
   const org = await authorizedDocumentOrg();
   if (!org) return { success: false, error: "Authorized membership required." };
+  if (!rationale?.trim() || !["verify","reject","clarify"].includes(reviewAction)) return {success:false,error:"Decision and rationale required."};
+  const ids = await assignedPatientIds(await requireClinicalMember());
   const isVerified = reviewAction === "verify";
 
   const { error } = await admin
@@ -400,7 +382,7 @@ export async function reviewEntityAction(
     .update({
       is_verified: isVerified,
     })
-    .eq("id", entityId).eq("organization_id", org);
+    .eq("id", entityId).eq("organization_id", org).in("patient_id",ids).select("id").single();
 
   if (error) {
     return { success: false, error: error.message };
@@ -414,7 +396,7 @@ export async function reviewEntityAction(
     details: {
       action_type: "evidence.reviewed",
       review_action: reviewAction,
-      rationale: rationale || "Attending physician clinical verification",
+      rationale: rationale,
       is_verified: isVerified,
     },
   });
